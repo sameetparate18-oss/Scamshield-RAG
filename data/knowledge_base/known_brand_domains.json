@@ -1,0 +1,16 @@
+{
+  "sbi": ["sbi.co.in", "onlinesbi.sbi", "onlinesbi.com"],
+  "hdfc": ["hdfcbank.com"],
+  "icici": ["icicibank.com"],
+  "axis": ["axisbank.com"],
+  "indiapost": ["indiapost.gov.in"],
+  "amazon": ["amazon.in", "amazon.com"],
+  "flipkart": ["flipkart.com"],
+  "paytm": ["paytm.com"],
+  "phonepe": ["phonepe.com"],
+  "googlepay": ["pay.google.com"],
+  "irctc": ["irctc.co.in"],
+  "incometax": ["incometax.gov.in"],
+  "uidai": ["uidai.gov.in"],
+  "rbi": ["rbi.org.in"]
+}

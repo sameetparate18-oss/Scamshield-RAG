@@ -1,0 +1,92 @@
+[
+  {
+    "id": "KB001",
+    "category": "UPI Fraud - Refund Scam",
+    "pattern_description": "Scammer contacts victim claiming a wrong/excess payment was made to them via UPI, and asks them to 'refund' it by clicking a link or scanning a QR code / entering UPI PIN. In reality, scanning a QR code or entering a PIN is only needed to RECEIVE money in some flows, but scammers exploit collect requests to drain the victim's account.",
+    "example_text": "Sir, maine galti se aapke account mein 5000 rupees bhej diye hai. Please is QR code ko scan karke wapas kar dijiye. Turant kariye warna main police complaint karunga.",
+    "red_flags": ["Urgency/threat of police action", "Request to scan QR code to 'return' money", "Unknown sender claiming accidental transfer", "Pressure to act immediately"],
+    "source_citation": "RBI Alert on UPI Fraud (RBI Consumer Awareness, 2023) - 'Never scan a QR code or share UPI PIN to receive money'",
+    "legit_contrast": "Real refunds from banks/apps never require scanning a QR code or entering a PIN; PINs are only for sending money."
+  },
+  {
+    "id": "KB002",
+    "category": "Digital Arrest Scam",
+    "pattern_description": "Fraudster impersonates police, CBI, customs, or narcotics officials via video/voice call, claims the victim's Aadhaar/phone number is linked to a crime (drugs, money laundering, courier with illegal items), and threatens 'digital arrest' unless the victim transfers money or stays on video call under surveillance.",
+    "example_text": "This is Customs Department Mumbai. A parcel with your Aadhaar linked to illegal substances was intercepted. You are under digital arrest. Do not disconnect this call or inform anyone. Transfer funds for verification immediately.",
+    "red_flags": ["Claim of 'digital arrest' (not a real legal concept in India)", "Threat of arrest without due process", "Instruction not to hang up or contact family/lawyer", "Demand for money transfer for 'verification' or 'clearance'"],
+    "source_citation": "CERT-In / Ministry of Home Affairs Cybercrime Advisory on Digital Arrest Scams (2024) - 'Digital arrest' is not a legal procedure under Indian law.",
+    "legit_contrast": "No Indian law enforcement agency arrests, detains, or holds a citizen 'digitally' over video call, nor asks for money transfers to avoid arrest."
+  },
+  {
+    "id": "KB003",
+    "category": "Fake Delivery / Customs Fee Scam",
+    "pattern_description": "Message claims a package (often from abroad) is held at customs or a courier hub pending a small 'clearance fee' or 'customs duty', with a link to pay. The link leads to a phishing page that harvests card details or triggers a larger unauthorized debit.",
+    "example_text": "Your parcel from India Post is on hold due to unpaid customs duty of Rs 39. Pay now to release: http://indiapost-delivery-verify.xyz/pay",
+    "red_flags": ["Non-official domain mimicking a real courier/postal brand", "Small, plausible-sounding fee to lower suspicion", "Urgency ('parcel will be returned')", "Shortened or suspicious URL"],
+    "source_citation": "CERT-In Advisory on Courier/Delivery Phishing Scams",
+    "legit_contrast": "India Post, FedEx, DHL, etc. do not collect customs duty via SMS links; duties are paid through official portals or at delivery."
+  },
+  {
+    "id": "KB004",
+    "category": "Fake Job Offer Scam",
+    "pattern_description": "Victim receives a job offer (often via WhatsApp) with unrealistically high pay for simple tasks (e.g., 'like YouTube videos', 'rate products online'), and is asked to pay a 'registration fee' or join a Telegram group where they are later asked to invest money for higher 'task rewards'.",
+    "example_text": "Congratulations! You are selected for a part-time job. Earn Rs 3000-5000 daily by liking YouTube videos. Join our Telegram group to start: t.me/xxxxx. Registration fee Rs 500 only.",
+    "red_flags": ["Unrealistic pay for trivial work", "Upfront registration/fee requirement", "Redirect to Telegram/WhatsApp groups outside official channels", "No formal interview or company verification process"],
+    "source_citation": "Indian Cyber Crime Coordination Centre (I4C) Advisory on Task-Based Job Fraud (2024)",
+    "legit_contrast": "Legitimate employers do not ask candidates to pay money to get hired or to unlock 'task earnings'."
+  },
+  {
+    "id": "KB005",
+    "category": "KYC Update / Account Block Scam",
+    "pattern_description": "Message impersonates a bank claiming the victim's KYC has expired or account will be blocked/suspended unless they click a link to update details or call a number, leading to phishing pages or scammers who ask for OTP/PIN over call.",
+    "example_text": "Dear Customer, your SBI account KYC has expired. Your account will be blocked in 24 hours. Update immediately: http://sbi-kyc-update.net/verify",
+    "red_flags": ["Non-bank domain (not endswith .sbi.co.in etc.)", "Artificial urgency (24 hour deadline)", "Request for OTP/PIN which banks never ask for", "Grammar/formatting inconsistent with official bank communication"],
+    "source_citation": "RBI Guidelines - Banks never ask for OTP, PIN, or CVV via call/SMS/email",
+    "legit_contrast": "Banks update KYC through branch visits, verified net-banking portals, or official apps, never via unsolicited SMS links."
+  },
+  {
+    "id": "KB006",
+    "category": "Loan App Harassment Scam",
+    "pattern_description": "Victim downloads an unauthorized instant-loan app that accesses their contacts/photos, then after taking a small loan, faces harassment, morphed images, and blackmail from recovery agents if repayment (often at very high hidden interest) is delayed.",
+    "example_text": "Your loan of Rs 5000 is now due with a total of Rs 15000 including charges. Pay within 2 hours or we will send your photo to all your contacts.",
+    "red_flags": ["App not listed on RBI's registered NBFC list", "Excessive interest/fees not disclosed upfront", "Threats involving contacts or photos", "No formal loan agreement or physical verification"],
+    "source_citation": "RBI Advisory on Unauthorized Digital Lending Apps (2022)",
+    "legit_contrast": "RBI-registered lenders do not threaten borrowers with personal data exposure and must disclose all charges upfront."
+  },
+  {
+    "id": "KB007",
+    "category": "Lottery / Prize Scam",
+    "pattern_description": "Victim is told they've won a lottery, lucky draw, or prize (often referencing a well-known brand like KBC or a phone company) and must pay a 'processing fee' or 'tax' to claim it.",
+    "example_text": "CONGRATULATIONS! Your number has won Rs 25,00,000 in the KBC Lucky Draw 2026. To claim, pay processing fee of Rs 4999 to this UPI ID: kbcwinner@upi",
+    "red_flags": ["You never entered a lottery you're being told you won", "Requirement to pay to receive winnings", "Use of a well-known brand name without official association", "Payment via personal UPI ID rather than any official channel"],
+    "source_citation": "TRAI / Cyber Crime Awareness - Common Lottery Scam Pattern",
+    "legit_contrast": "Legitimate lotteries or brand promotions never require winners to pay money upfront to release winnings."
+  },
+  {
+    "id": "KB008",
+    "category": "Matrimonial / Romance Scam",
+    "pattern_description": "Scammer builds a relationship on a matrimonial or dating platform, then invents an emergency (medical, travel, customs) requiring urgent money transfer, often after weeks of conversation without ever meeting in person.",
+    "example_text": "My love, I am stuck at customs in Mumbai airport, they are asking for Rs 50,000 to release my luggage which has gifts for you. Please send urgently, I will pay you back when I land.",
+    "red_flags": ["Relationship never met in person despite claims of love", "Sudden financial emergency", "Requests routed through unusual payment channels", "Inconsistent personal details/photos possibly reverse-searchable"],
+    "source_citation": "I4C Advisory on Romance/Matrimonial Fraud",
+    "legit_contrast": "N/A - pattern-based; verified relationships rarely require emergency unsolicited money transfers so early."
+  },
+  {
+    "id": "KB009",
+    "category": "Fake Bank/UPI App Support Scam",
+    "pattern_description": "Victim searches online for a bank/UPI app's customer care number and lands on a fake number, or scammer calls posing as support after a victim posts a complaint, then asks to install a remote-access app (AnyDesk/TeamViewer) 'to fix the issue', gaining full control of the device.",
+    "example_text": "Sir I am calling from PhonePe support regarding your complaint. Please install AnyDesk app so I can fix your account issue remotely.",
+    "red_flags": ["Request to install remote access/screen sharing app", "Contacted you rather than you calling verified support", "Asks for app passcodes or lets them 'see' the screen with UPI PIN visible"],
+    "source_citation": "NPCI/CERT-In Advisory on Remote Access App Fraud",
+    "legit_contrast": "Official bank/UPI support never asks customers to install remote-access screen-sharing apps."
+  },
+  {
+    "id": "KB010",
+    "category": "SIM Swap / Fake Mobile Operator Scam",
+    "pattern_description": "Victim receives a call/message posing as a telecom operator asking to press a number or share an OTP to 'upgrade SIM to 5G' or 'prevent SIM deactivation', which is actually a SIM-swap attempt to hijack their number for banking OTP access.",
+    "example_text": "Dear customer, your SIM will be deactivated today due to KYC issue. Press 1 or share the OTP sent to you to keep your number active.",
+    "red_flags": ["Any request for OTP over call/SMS", "Urgency about SIM deactivation", "Instruction to press digits during a call from an unknown/spoofed number"],
+    "source_citation": "TRAI/DoT Advisory - Telecom operators never ask for OTP to keep SIM active",
+    "legit_contrast": "Telecom providers do not deactivate SIMs via a single missed KYC step communicated by SMS/call with an OTP share request."
+  }
+]

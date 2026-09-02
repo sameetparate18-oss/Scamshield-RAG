@@ -1,0 +1,37 @@
+[
+  {
+    "id": "LG001",
+    "category": "Legit Bank Transaction Alert",
+    "example_text": "Dear Customer, Rs.2,500.00 debited from A/c XX1234 on 12-Aug-26 to VPA merchant@okaxis. UPI Ref No 123456789012. If not done by you, call 1800-XXX-XXXX.",
+    "why_legit": "No link to click, references specific masked account number and UPI reference ID, provides an official toll-free number rather than asking to click anything.",
+    "source_citation": "Standard bank transaction alert format used by NPCI-linked banks"
+  },
+  {
+    "id": "LG002",
+    "category": "Legit Delivery Notification",
+    "example_text": "Your Amazon order #402-1234567 is out for delivery and will arrive today by 8 PM. Track: amazon.in/orders",
+    "why_legit": "Uses official domain (amazon.in), no fee requested, no urgency/threat language, references a specific order number.",
+    "source_citation": "Standard e-commerce delivery notification pattern"
+  },
+  {
+    "id": "LG003",
+    "category": "Legit OTP Message",
+    "example_text": "123456 is your OTP for login to XYZ Bank NetBanking. Valid for 10 minutes. Do not share this OTP with anyone including bank staff.",
+    "why_legit": "Explicitly warns not to share the OTP with anyone, including bank staff, which is the standard official format; contains no links or payment requests.",
+    "source_citation": "RBI-mandated OTP message format"
+  },
+  {
+    "id": "LG004",
+    "category": "Legit Job Interview Communication",
+    "example_text": "Hi, this is HR from TechCorp Pvt Ltd. Thank you for applying for the Software Engineer role. We would like to schedule a technical interview on Monday at 3 PM via Google Meet. Please confirm your availability.",
+    "why_legit": "No payment requested, uses company's real name and formal process, interview conducted via standard platform, no urgency pressure.",
+    "source_citation": "Standard corporate recruitment communication pattern"
+  },
+  {
+    "id": "LG005",
+    "category": "Legit KYC Reminder (via official channel)",
+    "example_text": "Reminder: Please complete your periodic KYC update by visiting your nearest XYZ Bank branch or logging into the official XYZ Bank mobile app before 30-Sep-2026.",
+    "why_legit": "Directs to official branch or official app rather than an external link, gives a reasonable deadline rather than hours, no threat of immediate account freeze.",
+    "source_citation": "RBI periodic KYC update guidelines"
+  }
+]

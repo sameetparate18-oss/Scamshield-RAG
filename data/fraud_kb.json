@@ -1,0 +1,83 @@
+[
+  {
+    "id": "INT-001",
+    "category": "Digital Arrest / Statutory Impersonation",
+    "jurisdiction": "Interpol / CBI / Police",
+    "mitre_ttp": "T1656: Impersonation",
+    "patterns": [
+      "digital arrest supreme court warrant narcotics customs package seizure",
+      "mumbai police cbi arrest parcel containing drugs money laundering skype call video verification",
+      "stay on video call do not disconnect immediate court warrant bank account verification"
+    ],
+    "red_flags": [
+      "Coercive video confinement ('Digital Arrest')",
+      "Threat of immediate custody without judicial summons",
+      "Demands asset transfer to 'RBI safe accounts' for verification"
+    ],
+    "citations": [
+      "CERT-In Advisory CIAD-2026-0089: Digital Arrest Syndicates",
+      "Interpol Orange Notice: Extortion via Fake Judicial Summons",
+      "MHA Cyber Dost Advisory on Fake Police Video Calls"
+    ]
+  },
+  {
+    "id": "IC3-002",
+    "category": "CEO Fraud / Business Email Compromise",
+    "jurisdiction": "FBI IC3",
+    "mitre_ttp": "T1566.002: Spearphishing Link",
+    "patterns": [
+      "urgent wire payment vendor acquisition do not discuss confidential direct transfer",
+      "executive transfer accounts settlement invoice overdue swift transfer immediately",
+      "payroll account change bank routing information urgent direct deposit"
+    ],
+    "red_flags": [
+      "Executive bypass of dual-control accounting checks",
+      "Severe manufactured time sensitivity",
+      "Out-of-band wire instruction alterations"
+    ],
+    "citations": [
+      "FBI IC3 Alert: Business Email Compromise (BEC) Trends",
+      "Europol EC3 Threat Notice: Executive Impersonation"
+    ]
+  },
+  {
+    "id": "NCSC-003",
+    "category": "Banking Trojan / OTP Exfiltration",
+    "jurisdiction": "RBI / NCSC / UK",
+    "mitre_ttp": "T1589: Target Profiling",
+    "patterns": [
+      "electricity bill overdue power disconnection tonight update kyc click link",
+      "debit card blocked update pan card to prevent deactivation send otp",
+      "bank account suspended verify identity input netbanking credentials"
+    ],
+    "red_flags": [
+      "Threat of service termination (power, SIM, bank account)",
+      "Third-party APK or phishing domain delivery",
+      "Requests for OTP, CVV, or netbanking passwords"
+    ],
+    "citations": [
+      "RBI Master Circular: Prevention of Electronic Banking Fraud",
+      "UK NCSC Advisory: Smishing and Phishing Telemetry"
+    ]
+  },
+  {
+    "id": "FTC-004",
+    "category": "Pig Butchering / Synthetic Investment",
+    "jurisdiction": "US FTC / FinCEN",
+    "mitre_ttp": "T1586: Compromised Accounts",
+    "patterns": [
+      "guaranteed high yield return crypto arbitrage deposit funds liquidity pool vip investment",
+      "forex trading signals whatsapp telegram group insider profits daily withdrawal locked",
+      "institutional investment trading platform tax deposit required before release"
+    ],
+    "red_flags": [
+      "Guaranteed outsized returns with zero downside risk",
+      "Demands tax/liquidity deposit to unlock withdrawals",
+      "Communication migrated to unencrypted channels (Telegram/WhatsApp)"
+    ],
+    "citations": [
+      "FinCEN Notice FIN-2023-NTC2: Pig Butchering Scams",
+      "US FTC Consumer Warning: Fake Crypto Trading Portals"
+    ]
+  }
+]

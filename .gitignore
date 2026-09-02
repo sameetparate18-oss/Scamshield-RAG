@@ -1,0 +1,25 @@
+# Virtual Environment
+venv/
+env/
+ENV/
+
+# Python Cache & Bytecode
+__pycache__/
+*.py[cod]
+*$py.class
+*.pyd
+
+# Audit History & Local Storage (Prevents personal scan history uploads)
+data/scan_history.json
+data/scamshield_audit.json
+
+# Exported Dossiers & Reports
+*.txt
+dossier_*.txt
+scamshield_report_*.txt
+
+# OS-specific
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
