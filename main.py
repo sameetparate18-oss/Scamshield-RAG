@@ -41,6 +41,7 @@ sys.path.insert(0, BASE_DIR)
 try:
     from core.ingest import ingest_text, ingest_auto
     from core.verdict_engine import VerdictEngine
+    from core.report_generator import generate_ncrp_dossier
 except ImportError:
     # Production fallback harness for standalone execution
     class DummyVerdict:
@@ -467,18 +468,54 @@ class ScamShieldApp(ctk.CTk):
         self.lbl_risk_score = ctk.CTkLabel(prog_box, text="Calculated Risk Score: 0.00 / 1.00", font=ctk.CTkFont("Segoe UI", 11), text_color=THEME["text_muted"])
         self.lbl_risk_score.pack(anchor="w")
 
+        # Action Buttons Row
         action_row = ctk.CTkFrame(self.card_verdict, fg_color="transparent")
         action_row.pack(fill="x", padx=20, pady=(0, 14))
 
         self.lbl_timing = ctk.CTkLabel(action_row, text="", font=ctk.CTkFont("Segoe UI", 11), text_color=THEME["text_dim"])
         self.lbl_timing.pack(side="left")
 
-        self.btn_export = ctk.CTkButton(action_row, text="Export Audit Dossier", font=ctk.CTkFont("Segoe UI", 11, "bold"), fg_color=THEME["border"], width=130, height=28, state="disabled", command=self._export_dossier)
+        # Export Technical Dossier
+        self.btn_export = ctk.CTkButton(
+            action_row, 
+            text="Export Audit Dossier", 
+            font=ctk.CTkFont("Segoe UI", 11, "bold"), 
+            fg_color=THEME["border"], 
+            width=130, 
+            height=28, 
+            state="disabled", 
+            command=self._export_dossier
+        )
         self.btn_export.pack(side="right", padx=(8, 0))
 
-        self.btn_copy = ctk.CTkButton(action_row, text="Copy Report", font=ctk.CTkFont("Segoe UI", 11, "bold"), fg_color=THEME["border"], width=90, height=28, state="disabled", command=self._copy_summary)
+        # File NCRP Legal Complaint
+        self.btn_ncrp = ctk.CTkButton(
+            action_row,
+            text="⚖️ File NCRP Report",
+            font=ctk.CTkFont("Segoe UI", 11, "bold"),
+            fg_color="#831843",
+            hover_color="#9D174D",
+            width=130,
+            height=28,
+            state="disabled",
+            command=self._generate_cyber_crime_report
+        )
+        self.btn_ncrp.pack(side="right", padx=(8, 0))
+
+        # Copy Summary to Clipboard
+        self.btn_copy = ctk.CTkButton(
+            action_row, 
+            text="Copy Report", 
+            font=ctk.CTkFont("Segoe UI", 11, "bold"), 
+            fg_color=THEME["border"], 
+            width=90, 
+            height=28, 
+            state="disabled", 
+            command=self._copy_summary
+        )
         self.btn_copy.pack(side="right")
 
+        # Metric Stats Cards
         stats_row = ctk.CTkFrame(self.report_canvas, fg_color="transparent")
         stats_row.pack(fill="x", pady=(0, 16))
         stats_row.grid_columnconfigure((0, 1, 2), weight=1, uniform="stat_metric")
@@ -494,22 +531,25 @@ class ScamShieldApp(ctk.CTk):
         return page
 
     # ==================================================================
-    # PAGE 2: BHARAT-QR LAB (OPENCV-POWERED)
+    # PAGE 2: BHARAT-QR & QUISHING FORENSIC WORKSTATION
     # ==================================================================
     def _build_page_qr_lab(self):
         page = ctk.CTkFrame(self.main_container, fg_color="transparent")
-        page.grid_columnconfigure((0, 1), weight=1)
+        page.grid_columnconfigure(0, weight=4)
+        page.grid_columnconfigure(1, weight=6)
         page.grid_rowconfigure(1, weight=1)
 
+        # Workstation Header
         head = ctk.CTkFrame(page, fg_color="transparent")
         head.grid(row=0, column=0, columnspan=2, sticky="ew", padx=24, pady=(24, 10))
-        ctk.CTkLabel(head, text="📷 Bharat-QR & Quishing Forensic Console", font=ctk.CTkFont("Segoe UI", 20, "bold"), text_color=THEME["text_main"]).pack(anchor="w")
-        ctk.CTkLabel(head, text="OpenCV native decoder: Inspects NPCI UPI parameters, maps PSP banks, and detects web redirects.", font=ctk.CTkFont("Segoe UI", 12), text_color=THEME["text_muted"]).pack(anchor="w")
+        ctk.CTkLabel(head, text="📷 Bharat-QR & Financial Signal Forensic Lab", font=ctk.CTkFont("Segoe UI", 20, "bold"), text_color=THEME["text_main"]).pack(anchor="w")
+        ctk.CTkLabel(head, text="EMVCo Tag-Length-Value parser, NPCI PSP banking switch validator, and live Quishing/Network OSINT.", font=ctk.CTkFont("Segoe UI", 12), text_color=THEME["text_muted"]).pack(anchor="w")
 
+        # Ingestion Panel (Left)
         left_box = ctk.CTkFrame(page, fg_color=THEME["bg_card"], border_width=1, border_color=THEME["border"], corner_radius=10)
         left_box.grid(row=1, column=0, sticky="nsew", padx=(24, 10), pady=(0, 24))
 
-        ctk.CTkLabel(left_box, text="Direct Ingestion", font=ctk.CTkFont("Segoe UI", 14, "bold"), text_color=THEME["accent"]).pack(anchor="w", padx=16, pady=(16, 8))
+        ctk.CTkLabel(left_box, text="Artifact Ingestion & Capture", font=ctk.CTkFont("Segoe UI", 14, "bold"), text_color=THEME["accent"]).pack(anchor="w", padx=16, pady=(16, 8))
 
         ctk.CTkButton(
             left_box,
@@ -522,48 +562,140 @@ class ScamShieldApp(ctk.CTk):
 
         ctk.CTkButton(
             left_box,
-            text="📹 Scan via Live Webcam",
+            text="📹 Scan via Live Camera Feed",
             font=ctk.CTkFont("Segoe UI", 12, "bold"),
             fg_color="#064E3B",
             hover_color="#059669",
             command=self._qr_toggle_camera
         ).pack(fill="x", padx=16, pady=6)
 
-        ctk.CTkLabel(left_box, text="Manual UPI URI String Input:", font=ctk.CTkFont("Segoe UI", 12), text_color=THEME["text_muted"]).pack(anchor="w", padx=16, pady=(16, 4))
-        self.qr_manual_entry = ctk.CTkEntry(left_box, placeholder_text="upi://pay?pa=merchant@okhdfcbank...", fg_color=THEME["bg_card_inner"], border_color=THEME["border"])
+        ctk.CTkLabel(left_box, text="Raw Payload / URI Input:", font=ctk.CTkFont("Segoe UI", 12), text_color=THEME["text_muted"]).pack(anchor="w", padx=16, pady=(16, 4))
+        self.qr_manual_entry = ctk.CTkEntry(left_box, placeholder_text="upi://pay?pa=... or 000201...", fg_color=THEME["bg_card_inner"], border_color=THEME["border"])
         self.qr_manual_entry.pack(fill="x", padx=16, pady=(0, 8))
 
         ctk.CTkButton(left_box, text="Inspect Raw String", font=ctk.CTkFont("Segoe UI", 11, "bold"), fg_color=THEME["accent"], text_color="#06090F", command=self._qr_inspect_text).pack(fill="x", padx=16, pady=(0, 16))
 
-        self.lbl_qr_camera_status = ctk.CTkLabel(left_box, text="Camera: Idle", font=ctk.CTkFont("Segoe UI", 11), text_color=THEME["text_dim"])
-        self.lbl_qr_camera_status.pack(anchor="w", padx=16, pady=(0, 10))
+        self.lbl_qr_camera_status = ctk.CTkLabel(left_box, text="Sensor State: Idle", font=ctk.CTkFont("Segoe UI", 11), text_color=THEME["text_dim"])
+        self.lbl_qr_camera_status.pack(anchor="w", padx=16, pady=(0, 12))
 
-        self.qr_dossier_box = ctk.CTkTextbox(page, font=ctk.CTkFont("Consolas", 12), fg_color=THEME["bg_card_inner"], border_width=1, border_color=THEME["border"])
-        self.qr_dossier_box.grid(row=1, column=1, sticky="nsew", padx=(10, 24), pady=(0, 24))
-        self.qr_dossier_box.insert("end", "Stage an image, inspect a raw URI, or activate webcam to render the forensic breakdown.")
+        # Forensic Audit Guide
+        guide_box = ctk.CTkFrame(left_box, fg_color=THEME["bg_card_inner"], border_width=1, border_color=THEME["border"], corner_radius=8)
+        guide_box.pack(fill="x", padx=16, pady=(10, 16))
+        ctk.CTkLabel(guide_box, text="⚡ FORENSIC CAPABILITIES ACTIVE", font=ctk.CTkFont("Segoe UI", 10, "bold"), text_color=THEME["accent"]).pack(anchor="w", padx=12, pady=(10, 4))
+        ctk.CTkLabel(
+            guide_box,
+            text="• ISO/IEC 18004 CRC-16 Verification\n• ISO 18245 MCC Risk Profiling\n• Bare IP & Malicious Quishing Routing\n• Impersonation & Lock-in Traps",
+            font=ctk.CTkFont("Segoe UI", 10),
+            text_color=THEME["text_muted"],
+            justify="left"
+        ).pack(anchor="w", padx=12, pady=(0, 12))
+
+        # Forensic Canvas (Right)
+        self.qr_scroll_canvas = ctk.CTkScrollableFrame(page, fg_color="transparent")
+        self.qr_scroll_canvas.grid(row=1, column=1, sticky="nsew", padx=(10, 24), pady=(0, 24))
+        self.qr_scroll_canvas.grid_columnconfigure(0, weight=1)
+
+        # 1. Main Risk Banner
+        self.qr_status_card = ctk.CTkFrame(self.qr_scroll_canvas, fg_color=THEME["bg_card"], border_width=1, border_color=THEME["border"], corner_radius=10)
+        self.qr_status_card.pack(fill="x", pady=(0, 14))
+
+        self.lbl_qr_verdict = ctk.CTkLabel(self.qr_status_card, text="SYSTEM STANDBY : AWAITING SCAN", font=ctk.CTkFont("Segoe UI", 15, "bold"), text_color=THEME["text_muted"])
+        self.lbl_qr_verdict.pack(anchor="w", padx=18, pady=(14, 4))
+
+        self.lbl_qr_type = ctk.CTkLabel(self.qr_status_card, text="Upload an artifact image or input raw UPI parameters to extract telemetry.", font=ctk.CTkFont("Segoe UI", 11), text_color=THEME["text_muted"])
+        self.lbl_qr_type.pack(anchor="w", padx=18, pady=(0, 10))
+
+        # Progress Risk Meter
+        prog_wrap = ctk.CTkFrame(self.qr_status_card, fg_color="transparent")
+        prog_wrap.pack(fill="x", padx=18, pady=(0, 14))
+        self.prog_qr_risk = ctk.CTkProgressBar(prog_wrap, progress_color=THEME["scam"], fg_color=THEME["border"], height=8)
+        self.prog_qr_risk.set(0)
+        self.prog_qr_risk.pack(fill="x", pady=(0, 4))
+        self.lbl_qr_score = ctk.CTkLabel(prog_wrap, text="Calculated Risk Floor: 0.00 / 1.00", font=ctk.CTkFont("Segoe UI", 10), text_color=THEME["text_muted"])
+        self.lbl_qr_score.pack(anchor="w")
+
+        # 2. Metric Grid Matrix (3 Rows x 2 Cols)
+        row1 = ctk.CTkFrame(self.qr_scroll_canvas, fg_color="transparent")
+        row1.pack(fill="x", pady=(0, 10))
+        row1.grid_columnconfigure((0, 1), weight=1, uniform="qr_cell")
+        self.cell_vpa = self._create_qr_tile(row1, 0, "Payee VPA / Handle", "—")
+        self.cell_name = self._create_qr_tile(row1, 1, "Declared Legal Entity", "—")
+
+        row2 = ctk.CTkFrame(self.qr_scroll_canvas, fg_color="transparent")
+        row2.pack(fill="x", pady=(0, 10))
+        row2.grid_columnconfigure((0, 1), weight=1, uniform="qr_cell")
+        self.cell_bank = self._create_qr_tile(row2, 0, "Issuing PSP & Bank Rail", "—")
+        self.cell_mcc = self._create_qr_tile(row2, 1, "Merchant Category (MCC)", "—")
+
+        row3 = ctk.CTkFrame(self.qr_scroll_canvas, fg_color="transparent")
+        row3.pack(fill="x", pady=(0, 14))
+        row3.grid_columnconfigure((0, 1), weight=1, uniform="qr_cell")
+        self.cell_amount = self._create_qr_tile(row3, 0, "Amount Lock Configuration", "—")
+        self.cell_crc = self._create_qr_tile(row3, 1, "Cryptographic Checksum / Sign", "—")
+
+        # 3. Anomalies & Indicators
+        self.card_qr_anomalies = self._narrative_card(self.qr_scroll_canvas, "🚩 Deep Forensic Telemetry & Indicators", "No active anomalies flagged.")
+
+        # 4. Raw Decoded Payload Inspector
+        raw_box = ctk.CTkFrame(self.qr_scroll_canvas, fg_color=THEME["bg_card"], border_width=1, border_color=THEME["border"], corner_radius=10)
+        raw_box.pack(fill="x", pady=(0, 10))
+        ctk.CTkLabel(raw_box, text="📦 Raw Decoded String & Memory Dump", font=ctk.CTkFont("Segoe UI", 12, "bold"), text_color=THEME["accent"]).pack(anchor="w", padx=16, pady=(12, 6))
+        self.txt_qr_raw = ctk.CTkTextbox(raw_box, height=80, font=ctk.CTkFont("Consolas", 11), fg_color=THEME["bg_card_inner"], border_width=1, border_color=THEME["border"])
+        self.txt_qr_raw.pack(fill="x", padx=16, pady=(0, 14))
+        self.txt_qr_raw.insert("end", "Decoded memory buffer empty.")
 
         return page
 
+    def _create_qr_tile(self, parent, col, title, initial_val):
+        box = ctk.CTkFrame(parent, fg_color=THEME["bg_card"], border_width=1, border_color=THEME["border"], corner_radius=8)
+        box.grid(row=0, column=col, sticky="nsew", padx=(0 if col == 0 else 6, 0 if col == 1 else 6))
+        ctk.CTkLabel(box, text=title, font=ctk.CTkFont("Segoe UI", 10), text_color=THEME["text_dim"]).pack(anchor="w", padx=14, pady=(10, 2))
+        lbl = ctk.CTkLabel(box, text=initial_val, font=ctk.CTkFont("Segoe UI", 12, "bold"), text_color=THEME["text_main"], wraplength=240, justify="left")
+        lbl.pack(anchor="w", padx=14, pady=(0, 10))
+        return lbl
+
     def _render_qr_dossier(self, analysis: dict):
-        self.qr_dossier_box.delete("1.0", "end")
-        text = (
-            f"============================================================\n"
-            f"BHARAT-QR & QUISHING FORENSIC DOSSIER\n"
-            f"============================================================\n\n"
-            f"PAYLOAD TYPE       : {analysis.get('type')}\n"
-            f"VPA (UPI ID)       : {analysis.get('vpa', 'N/A')}\n"
-            f"DECLARED RECIPIENT : {analysis.get('declared_name', 'N/A')}\n"
-            f"ISSUING BANK       : {analysis.get('banking_partner', 'N/A')}\n"
-            f"PSP APPLICATION    : {analysis.get('psp_application', 'N/A')}\n"
-            f"MERCHANT CODE (MCC): {analysis.get('merchant_code', 'N/A')}\n"
-            f"AMOUNT LOCK        : {analysis.get('amount_locked', 'Dynamic')}\n"
-            f"RISK CLASSIFICATION: {analysis.get('status')}\n"
-            f"RISK SCORE         : {analysis.get('calculated_risk', 0.0):.2f} / 1.00\n\n"
-            f"--- ANOMALIES & INDICATORS ---\n" + "\n".join([f"• {a}" for a in analysis.get("anomalies", [])]) + "\n\n"
-            f"--- RAW DECODED PAYLOAD ---\n{analysis.get('raw_payload', '')}\n"
-            f"============================================================"
-        )
-        self.qr_dossier_box.insert("end", text)
+        risk = analysis.get("calculated_risk", 0.0)
+        status = analysis.get("status", "UNKNOWN")
+
+        if status in ("CRITICAL_RISK", "LIKELY_SCAM"):
+            badge_color = THEME["scam"]
+            card_bg = THEME["scam_bg"]
+            badge_title = "CRITICAL RISK : MALICIOUS VECTOR DETECTED"
+        elif status == "SUSPICIOUS":
+            badge_color = THEME["suspicious"]
+            card_bg = THEME["suspicious_bg"]
+            badge_title = "ELEVATED RISK : ANOMALIES IDENTIFIED"
+        else:
+            badge_color = THEME["safe"]
+            card_bg = THEME["safe_bg"]
+            badge_title = "VERIFIED STRUCTURE : AUTHENTIC FINANCIAL RAILS"
+
+        # Update Master Banner
+        self.qr_status_card.configure(fg_color=card_bg, border_color=badge_color)
+        self.lbl_qr_verdict.configure(text=badge_title, text_color=badge_color)
+        self.lbl_qr_type.configure(text=f"Payload Format: {analysis.get('type', 'N/A')} • Status: {status}")
+
+        self.prog_qr_risk.set(risk)
+        self.prog_qr_risk.configure(progress_color=badge_color)
+        self.lbl_qr_score.configure(text=f"Calculated Threat Floor: {risk:.2f} / 1.00")
+
+        # Update Matrix Cells
+        self.cell_vpa.configure(text=str(analysis.get("vpa", "N/A")))
+        self.cell_name.configure(text=str(analysis.get("declared_name", "Not Declared")))
+        self.cell_bank.configure(text=str(analysis.get("banking_partner", "Unknown Routing")))
+        self.cell_mcc.configure(text=str(analysis.get("merchant_code", "Unassigned")))
+        self.cell_amount.configure(text=str(analysis.get("amount_locked", "Dynamic / User-entered")))
+        self.cell_crc.configure(text=str(analysis.get("crc_status", "Unsigned")))
+
+        # Update Anomalies & Flags
+        anomalies = analysis.get("anomalies", [])
+        flags_text = "\n".join([f"• {a}" for a in anomalies]) if anomalies else "No structural discrepancies detected."
+        self.card_qr_anomalies.configure(text=flags_text)
+
+        # Update Raw Memory Dump
+        self.txt_qr_raw.delete("1.0", "end")
+        self.txt_qr_raw.insert("end", str(analysis.get("raw_payload", "")))
 
     def _qr_inspect_text(self):
         text = self.qr_manual_entry.get().strip()
@@ -581,7 +713,6 @@ class ScamShieldApp(ctk.CTk):
         if not path:
             return
         try:
-            # Handles special/unicode characters in Windows filepaths safely
             with open(path, "rb") as f:
                 bytes_arr = bytearray(f.read())
                 np_arr = np.asarray(bytes_arr, dtype=np.uint8)
@@ -591,7 +722,6 @@ class ScamShieldApp(ctk.CTk):
             payload, _, _ = detector.detectAndDecode(img)
 
             if not payload:
-                # Contrast enhancement fallback
                 gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
                 payload, _, _ = detector.detectAndDecode(gray)
 
@@ -611,11 +741,11 @@ class ScamShieldApp(ctk.CTk):
 
         if self.camera_running:
             self.camera_running = False
-            self.lbl_qr_camera_status.configure(text="Camera: Stopped", text_color=THEME["text_dim"])
+            self.lbl_qr_camera_status.configure(text="Sensor State: Idle", text_color=THEME["text_dim"])
             return
 
         self.camera_running = True
-        self.lbl_qr_camera_status.configure(text="Camera: Active (Press 'q' in feed to exit)", text_color=THEME["safe"])
+        self.lbl_qr_camera_status.configure(text="Sensor State: Active (Press 'q' in feed to cancel)", text_color=THEME["safe"])
 
         def _cam_worker():
             cap = cv2.VideoCapture(0)
@@ -640,7 +770,7 @@ class ScamShieldApp(ctk.CTk):
             cap.release()
             cv2.destroyAllWindows()
             self.camera_running = False
-            self.after(0, lambda: self.lbl_qr_camera_status.configure(text="Camera: Stopped", text_color=THEME["text_dim"]))
+            self.after(0, lambda: self.lbl_qr_camera_status.configure(text="Sensor State: Idle", text_color=THEME["text_dim"]))
 
         threading.Thread(target=_cam_worker, daemon=True).start()
 
@@ -749,9 +879,97 @@ class ScamShieldApp(ctk.CTk):
             ctk.CTkLabel(card, text=f['desc'], font=ctk.CTkFont("Segoe UI", 11), text_color=THEME["text_muted"]).pack(anchor="w", padx=16, pady=(0, 14))
 
         return page
-
+     # ==================================================================
+    # PAGE 5: GENERATE CYBER COMPLAINT & REPORT
     # ==================================================================
-    # PAGE 5: FORENSIC AUDIT TRAIL (WITH SEARCH)
+    def _generate_cyber_crime_report(self):
+        """Generates a formal NCRP / Cyber Cell FIR complaint from the active scan."""
+        if not self.last_scan:
+            messagebox.showinfo("No Active Evidence", "Please run a threat assessment or stage an artifact first.")
+            return
+
+        v = self.last_scan["verdict"]
+        ing = self.last_scan["ingest_res"]
+        raw_input = self.last_scan["input"]
+
+        # Package verdict into dictionary
+        v_dict = {
+            "verdict": v.verdict,
+            "combined_score": v.combined_score,
+            "matched_category": getattr(v, "matched_category", "Cyber Impersonation"),
+            "mitre_ttps": getattr(v, "mitre_ttps", []),
+            "explanation": getattr(v, "explanation", ""),
+            "red_flags": getattr(v, "red_flags", [])
+        }
+
+        # Check if QR metadata was ingested
+        qr_info = getattr(ing, "metadata", {}).get("qr_info") if hasattr(ing, "metadata") else None
+
+        # Build top-tier NCRP document
+        report_text = generate_ncrp_dossier(
+            incident_type=v_dict["matched_category"],
+            evidence_text=raw_input,
+            verdict_data=v_dict,
+            qr_data=qr_info
+        )
+
+        # Show in dedicated export preview dialog
+        preview_win = ctk.CTkToplevel(self)
+        preview_win.title("Cyber Crime Reporting Portal (NCRP) — Complaint Builder")
+        preview_win.geometry("900x700")
+        preview_win.configure(fg_color=THEME["bg_app"])
+
+        lbl_top = ctk.CTkLabel(
+            preview_win,
+            text="🛡️ National Cyber Crime Complaint (cybercrime.gov.in / FIR Draft)",
+            font=ctk.CTkFont("Segoe UI", 16, "bold"),
+            text_color=THEME["text_main"]
+        )
+        lbl_top.pack(anchor="w", padx=20, pady=(18, 4))
+
+        lbl_sub = ctk.CTkLabel(
+            preview_win,
+            text="Pre-formatted under IT Act 2000 & Bharatiya Nyaya Sanhita (BNS) 2023 with auto-extracted suspect VPAs, URLs, and phone numbers.",
+            font=ctk.CTkFont("Segoe UI", 11),
+            text_color=THEME["text_muted"]
+        )
+        lbl_sub.pack(anchor="w", padx=20, pady=(0, 10))
+
+        txt_preview = ctk.CTkTextbox(
+            preview_win,
+            font=ctk.CTkFont("Consolas", 11),
+            fg_color=THEME["bg_card_inner"],
+            border_width=1,
+            border_color=THEME["border"]
+        )
+        txt_preview.pack(fill="both", expand=True, padx=20, pady=10)
+        txt_preview.insert("end", report_text)
+
+        btn_row = ctk.CTkFrame(preview_win, fg_color="transparent")
+        btn_row.pack(fill="x", padx=20, pady=(0, 18))
+
+        def _save_file():
+            fn = f"NCRP_Complaint_{datetime.now().strftime('%Y%m%d_%H%M%S')}.txt"
+            p = filedialog.asksaveasfilename(defaultextension=".txt", initialfile=fn, filetypes=[("Text file", "*.txt")])
+            if p:
+                with open(p, "w", encoding="utf-8") as f:
+                    f.write(report_text)
+                messagebox.showinfo("Report Saved", f"Cyber Crime Complaint Dossier successfully saved to:\n{p}")
+
+        def _copy():
+            preview_win.clipboard_clear()
+            preview_win.clipboard_append(report_text)
+            btn_copy.configure(text="Copied to Clipboard!")
+            preview_win.after(1400, lambda: btn_copy.configure(text="📋 Copy Complaint"))
+
+        btn_save = ctk.CTkButton(btn_row, text="💾 Save Complaint (.txt)", font=ctk.CTkFont("Segoe UI", 12, "bold"), fg_color=THEME["accent"], text_color="#06090F", command=_save_file)
+        btn_save.pack(side="right", padx=(10, 0))
+
+        btn_copy = ctk.CTkButton(btn_row, text="📋 Copy Complaint", font=ctk.CTkFont("Segoe UI", 12, "bold"), fg_color=THEME["border"], command=_copy)
+        btn_copy.pack(side="right")
+        
+    # ==================================================================
+    # PAGE 6: FORENSIC AUDIT TRAIL (WITH SEARCH)
     # ==================================================================
     def _build_page_history(self):
         page = ctk.CTkFrame(self.main_container, fg_color="transparent")
@@ -820,7 +1038,7 @@ class ScamShieldApp(ctk.CTk):
             self._render_history_table()
 
     # ==================================================================
-    # PAGE 6: VECTOR HEALTH & DIAGNOSTICS
+    # PAGE 7: VECTOR HEALTH & DIAGNOSTICS
     # ==================================================================
     def _build_page_diagnostics(self):
         page = ctk.CTkFrame(self.main_container, fg_color="transparent")
@@ -994,7 +1212,8 @@ class ScamShieldApp(ctk.CTk):
 
         self.btn_export.configure(state="normal")
         self.btn_copy.configure(state="normal")
-
+        self.btn_ncrp.configure(state="normal")
+        
         self.history_records.append({
             "timestamp": self.last_scan["timestamp"],
             "verdict": verdict.verdict,
@@ -1003,7 +1222,6 @@ class ScamShieldApp(ctk.CTk):
         })
         self._persist_audit_trail()
         self._draw_radar_chart()
-
     def _copy_summary(self):
         if not self.last_scan:
             return
@@ -1044,6 +1262,88 @@ class ScamShieldApp(ctk.CTk):
             with open(target, "w", encoding="utf-8") as f:
                 f.write(dossier)
             messagebox.showinfo("Export Successful", f"Dossier saved to:\n{target}")
+
+    def _generate_cyber_crime_report(self):
+        if not self.last_scan:
+            messagebox.showinfo("No Active Evidence", "Please run a threat assessment or stage an artifact first.")
+            return
+
+        v = self.last_scan["verdict"]
+        ing = self.last_scan["ingest_res"]
+        raw_input = self.last_scan["input"]
+
+        v_dict = {
+            "verdict": v.verdict,
+            "combined_score": v.combined_score,
+            "matched_category": getattr(v, "matched_category", "Financial Cyber Threat"),
+            "mitre_ttps": getattr(v, "mitre_ttps", []),
+            "explanation": getattr(v, "explanation", ""),
+            "red_flags": getattr(v, "red_flags", [])
+        }
+
+        qr_info = getattr(ing, "metadata", {}).get("qr_info") if hasattr(ing, "metadata") else None
+
+        from core.report_generator import generate_ncrp_dossier
+        report_text = generate_ncrp_dossier(
+            incident_type=v_dict["matched_category"],
+            evidence_text=raw_input,
+            verdict_data=v_dict,
+            qr_data=qr_info
+        )
+
+        preview_win = ctk.CTkToplevel(self)
+        preview_win.title("Cyber Crime Reporting Portal (NCRP) — Complaint Builder")
+        preview_win.geometry("900x700")
+        preview_win.configure(fg_color=THEME["bg_app"])
+
+        lbl_top = ctk.CTkLabel(
+            preview_win,
+            text="🛡️ National Cyber Crime Complaint (cybercrime.gov.in / FIR Draft)",
+            font=ctk.CTkFont("Segoe UI", 16, "bold"),
+            text_color=THEME["text_main"]
+        )
+        lbl_top.pack(anchor="w", padx=20, pady=(18, 4))
+
+        lbl_sub = ctk.CTkLabel(
+            preview_win,
+            text="Pre-formatted under IT Act 2000 & BNS 2023 with auto-extracted suspect VPAs, URLs, and phone numbers.",
+            font=ctk.CTkFont("Segoe UI", 11),
+            text_color=THEME["text_muted"]
+        )
+        lbl_sub.pack(anchor="w", padx=20, pady=(0, 10))
+
+        txt_preview = ctk.CTkTextbox(
+            preview_win,
+            font=ctk.CTkFont("Consolas", 11),
+            fg_color=THEME["bg_card_inner"],
+            border_width=1,
+            border_color=THEME["border"]
+        )
+        txt_preview.pack(fill="both", expand=True, padx=20, pady=10)
+        txt_preview.insert("end", report_text)
+
+        btn_row = ctk.CTkFrame(preview_win, fg_color="transparent")
+        btn_row.pack(fill="x", padx=20, pady=(0, 18))
+
+        def _save_file():
+            fn = f"NCRP_Complaint_{datetime.now().strftime('%Y%m%d_%H%M%S')}.txt"
+            p = filedialog.asksaveasfilename(defaultextension=".txt", initialfile=fn, filetypes=[("Text file", "*.txt")])
+            if p:
+                with open(p, "w", encoding="utf-8") as f:
+                    f.write(report_text)
+                messagebox.showinfo("Report Saved", f"Cyber Crime Complaint Dossier successfully saved to:\n{p}")
+
+        def _copy():
+            preview_win.clipboard_clear()
+            preview_win.clipboard_append(report_text)
+            btn_copy.configure(text="Copied to Clipboard!")
+            preview_win.after(1400, lambda: btn_copy.configure(text="📋 Copy Complaint"))
+
+        btn_save = ctk.CTkButton(btn_row, text="💾 Save Complaint (.txt)", font=ctk.CTkFont("Segoe UI", 12, "bold"), fg_color=THEME["accent"], text_color="#06090F", command=_save_file)
+        btn_save.pack(side="right", padx=(10, 0))
+
+        btn_copy = ctk.CTkButton(btn_row, text="📋 Copy Complaint", font=ctk.CTkFont("Segoe UI", 12, "bold"), fg_color=THEME["border"], command=_copy)
+        btn_copy.pack(side="right")
 
 
 def main():
