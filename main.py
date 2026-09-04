@@ -2175,9 +2175,10 @@ class ScamShieldApp(ctk.CTk):
             self.lbl_file_display.configure(text=f"Staged: {os.path.basename(p)}", text_color=THEME["accent"])
 
     def _run_analysis(self):
-        # 1. Determine active input source (Text Tab vs Media Tab)
+        # 1. Determine active input source & define mode
         active_tab = self.tabs.get()
         if active_tab == "Raw Communication / Script":
+            mode = "text"
             raw_input = self.txt_evidence.get("1.0", "end").strip()
             if not raw_input:
                 messagebox.showwarning("Missing Input", "Please provide a communication snippet to analyze.")
@@ -2185,27 +2186,29 @@ class ScamShieldApp(ctk.CTk):
             artifact_bytes = raw_input.encode("utf-8")
             staged_filename = "raw_communication.txt"
         else:
-            if not hasattr(self, "staged_file_path") or not self.staged_file_path:
+            mode = "multimodal"
+            if not hasattr(self, "selected_file_path") or not self.selected_file_path:
                 messagebox.showwarning("Missing Artifact", "Please stage an image or audio file for forensic extraction.")
                 return
-            with open(self.staged_file_path, "rb") as f:
+            with open(self.selected_file_path, "rb") as f:
                 artifact_bytes = f.read()
-            raw_input = f"[Artifact File: {os.path.basename(self.staged_file_path)}]"
-            staged_filename = os.path.basename(self.staged_file_path)
+            raw_input = f"[Artifact File: {os.path.basename(self.selected_file_path)}]"
+            staged_filename = os.path.basename(self.selected_file_path)
+
+        payload = raw_input
 
         # 2. UI Pipeline Feedback & State Lockdown
         self.btn_analyze.configure(state="disabled")
         self.pipeline_box.grid(row=4, column=0, sticky="ew", pady=(8, 0))
-        self.lbl_pipeline_step.configure(text="Step 1/4: Generating SHA-256 Cryptographic Custody Seal...")
+        self.lbl_pipeline_step.configure(text="Step 1/4: Generating SHA-256 Custody Seal...")
 
         def _worker():
+            nonlocal payload
             t_start = time.time()
             elapsed = {"total": 0, "ingest": 0, "analysis": 0}
 
             try:
-                # -------------------------------------------------------------
-                # FORENSIC BACKEND 1: Cryptographic Chain of Custody
-                # -------------------------------------------------------------
+                # STEP 1: Cryptographic Chain of Custody
                 hashes = hash_artifact(artifact_bytes)
                 evidence_id = f"EVID_{datetime.now().strftime('%Y%m%d_%H%M%S')}_{hashes['sha256'][:8]}"
                 
@@ -2213,81 +2216,88 @@ class ScamShieldApp(ctk.CTk):
                     "source_tab": active_tab,
                     "filename": staged_filename,
                     "byte_size": hashes["byte_size"],
+                    "mode": mode,
                     "ingest_timestamp": datetime.now().isoformat()
                 }
                 vault_path = record_custody_event(evidence_id, hashes, custody_meta)
 
-                # -------------------------------------------------------------
-                # FORENSIC BACKEND 2: Hybrid RAG Intelligence Retrieval
-                # -------------------------------------------------------------
+                # STEP 2: Ingestion & Knowledge Base Query
                 self.after(0, lambda: self.lbl_pipeline_step.configure(
                     text="Step 2/4: Querying CERT-In / I4C Threat Vector Index..."
                 ))
                 t_ingest_start = time.time()
-                
-                # Retrieve matching intelligence records
-                matched_intel = self.rag_kb.query_context(raw_input, top_k=2)
-                
-                rag_citations = []
-                rag_ttps = []
-                for item in matched_intel:
-                    rag_citations.append(f"{item['id']} ({item['title']}): {item['advisory']}")
-                    rag_ttps.extend(item.get("ttps", []))
-                
-                # Ingestion handling (multimodal OCR / STT if file staged)
-                if active_tab != "Raw Communication / Script" and hasattr(self, "staged_file_path") and self.staged_file_path:
-                    from core.multimodal_ingest import ingest_file
-                    ingest_res = ingest_file(self.staged_file_path)
-                    analyzable_text = ingest_res.extracted_text or raw_input
+
+                if mode == "multimodal" and hasattr(self, "selected_file_path") and self.selected_file_path:
+                    try:
+                        from core.multimodal_ingest import ingest_file
+                        ingest_res = ingest_file(self.selected_file_path)
+                        analyzable_text = ingest_res.extracted_text or payload
+                    except Exception:
+                        class TextIngestFallback:
+                            modality = "file"
+                            extracted_text = payload
+                            metadata = {}
+                        ingest_res = TextIngestFallback()
+                        analyzable_text = payload
                 else:
                     class TextIngestDummy:
                         modality = "text"
-                        extracted_text = raw_input
+                        extracted_text = payload
                         metadata = {}
                     ingest_res = TextIngestDummy()
-                    analyzable_text = raw_input
+                    analyzable_text = payload
+
+                payload = analyzable_text
+
+                matched_intel = self.rag_kb.query_context(analyzable_text, top_k=2)
+                rag_citations = [f"{item['id']} ({item['title']}): {item['advisory']}" for item in matched_intel]
+                rag_ttps = []
+                for item in matched_intel:
+                    rag_ttps.extend(item.get("ttps", []))
 
                 elapsed["ingest"] = round(time.time() - t_ingest_start, 2)
 
-                # -------------------------------------------------------------
-                # STEP 3: Core Threat Classification Model
-                # -------------------------------------------------------------
+                # STEP 3: Classification Analysis
                 self.after(0, lambda: self.lbl_pipeline_step.configure(
                     text="Step 3/4: Synthesizing Model Verdict & TTP Alignment..."
                 ))
                 t_analysis_start = time.time()
 
-                # Call primary classifier (or local heuristic engine)
                 from core.scam_classifier import analyze_threat
-                verdict = analyze_threat(analyzable_text)
+                try:
+                    verdict = analyze_threat(analyzable_text, mode=mode)
+                except TypeError:
+                    verdict = analyze_threat(analyzable_text)
 
-                # Enrich verdict object with verified RAG context & Evidence ID
                 verdict.evidence_id = evidence_id
                 verdict.vault_file = vault_path
                 verdict.sha256 = hashes["sha256"]
-                
-                # Merge RAG citations with model citations
+
                 existing_cites = list(getattr(verdict, "citations", []))
                 verdict.citations = existing_cites + [c for c in rag_citations if c not in existing_cites]
 
-                # Merge RAG TTPs with model TTPs
                 existing_ttps = list(getattr(verdict, "mitre_ttps", []))
                 verdict.mitre_ttps = list(dict.fromkeys(existing_ttps + rag_ttps))
 
                 elapsed["analysis"] = round(time.time() - t_analysis_start, 2)
                 elapsed["total"] = round(time.time() - t_start, 2)
 
-                # -------------------------------------------------------------
-                # STEP 4: Render Telemetry on Main UI Thread
-                # -------------------------------------------------------------
-                self.after(0, lambda: self.lbl_pipeline_step.configure(text="Step 4/4: Finalizing SOC Canvas..."))
+                self.last_scan = {
+                    "verdict": verdict,
+                    "input": analyzable_text,
+                    "payload": analyzable_text,
+                    "elapsed": elapsed
+                }
+
+                # STEP 4: Render UI Outputs
+                self.after(0, lambda: self.lbl_pipeline_step.configure(text="Step 4/4: Finalizing Telemetry..."))
                 self.after(0, lambda: self._on_scan_success(verdict, ingest_res, analyzable_text, elapsed))
 
             except Exception as e:
                 self.after(0, lambda err=e: self._on_scan_failure(err))
 
         threading.Thread(target=_worker, daemon=True).start()
-
+        
         def _worker():
             try:
                 t0 = time.time()
