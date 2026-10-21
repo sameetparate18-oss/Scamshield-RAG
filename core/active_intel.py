@@ -3,12 +3,20 @@ ScamShield-RAG :: Active Threat Intelligence & Autonomous Deception Engine
 Handles live redirect unwrapping, mule handle profiling, and honeypot response generation.
 """
 
-import urllib.request
-import urllib.parse
-import http.client
-import ssl
+import asyncio
+import httpx
+import logging
 import re
 from typing import Dict, Any, List
+
+# Configure module logging for threat telemetry
+logger = logging.getLogger("ScamShield-ActiveIntel")
+if not logger.handlers:
+    handler = logging.StreamHandler()
+    formatter = logging.Formatter('%(asctime)s [%(levelname)s] %(name)s: %(message)s')
+    handler.setFormatter(formatter)
+    logger.addHandler(handler)
+    logger.setLevel(logging.INFO)
 
 def unwrap_redirect_chain(url: str, max_hops: int = 5) -> Dict[str, Any]:
     """
@@ -17,42 +25,44 @@ def unwrap_redirect_chain(url: str, max_hops: int = 5) -> Dict[str, Any]:
     """
     chain = [url]
     current_url = url
-    ctx = ssl.create_default_context()
-    ctx.check_hostname = False
-    ctx.verify_mode = ssl.CERT_NONE
+    status_history = []
 
-    for _ in range(max_hops):
-        try:
-            parsed = urllib.parse.urlparse(current_url)
-            if not parsed.scheme or not parsed.netloc:
-                break
-            
-            conn_cls = http.client.HTTPSConnection if parsed.scheme == "https" else http.client.HTTPConnection
-            conn = conn_cls(parsed.netloc, timeout=3.0, context=ctx if parsed.scheme == "https" else None)
-            path = parsed.path or "/"
-            if parsed.query:
-                path += f"?{parsed.query}"
-            
-            conn.request("HEAD", path, headers={"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)"})
-            resp = conn.getresponse()
-            
-            if resp.status in (301, 302, 303, 307, 308):
-                location = resp.getheader("Location")
-                if not location:
+    # Use synchronous httpx for standalone calls
+    with httpx.Client(headers={"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)"}, verify=False) as client:
+        for hop in range(max_hops):
+            try:
+                response = client.head(current_url, follow_redirects=False, timeout=4.0)
+                status_history.append({"url": current_url, "status": response.status_code})
+
+                # If server rejects HEAD (e.g. 403/405), fallback to GET
+                if response.status_code in (403, 405):
+                    response = client.get(current_url, follow_redirects=False, timeout=4.0)
+                    status_history[-1]["status"] = response.status_code
+
+                if response.status_code in (301, 302, 303, 307, 308):
+                    location = response.headers.get("Location")
+                    if not location:
+                        break
+                    
+                    next_url = str(httpx.URL(current_url).join(location))
+                    if next_url in chain:
+                        logger.warning(f"Redirect loop detected at: {next_url}")
+                        break
+                    
+                    current_url = next_url
+                    chain.append(current_url)
+                else:
                     break
-                # Handle relative redirects
-                current_url = urllib.parse.urljoin(current_url, location)
-                chain.append(current_url)
-            else:
+            except Exception as e:
+                logger.error(f"Error unwrapping redirect at hop {hop} ({current_url}): {str(e)}")
                 break
-        except Exception:
-            break
 
     return {
         "original_url": url,
         "final_destination": chain[-1],
         "total_hops": len(chain) - 1,
         "redirect_chain": chain,
+        "status_history": status_history,
         "is_cloaked": len(chain) > 1
     }
 
@@ -65,7 +75,7 @@ def profile_mule_account(vpa: str) -> Dict[str, Any]:
     flags = []
 
     if "@" not in vpa:
-        return {"risk_score": 0.0, "mule_confidence": "N/A", "flags": ["Invalid VPA format."]}
+        return {"vpa": vpa, "risk_score": 1.0, "mule_confidence": "HIGH", "flags": ["Malformed VPA format."]}
 
     user, handle = vpa.split("@", 1)
 
@@ -80,10 +90,10 @@ def profile_mule_account(vpa: str) -> Dict[str, Any]:
         flags.append("VPA utilizes high-entropy algorithmic identifiers (Mule syndicate signature).")
 
     # Heuristic 3: Coercive / Impersonation prefixes
-    spoof_terms = ["refund", "helpline", "treasury", "support", "kyc", "nodal", "cbi", "tax"]
+    spoof_terms = ["refund", "helpline", "treasury", "support", "kyc", "nodal", "cbi", "tax", "police"]
     if any(t in user for t in spoof_terms):
         score += 0.55
-        flags.append(f"Authority spoofing keyword embedded directly in payment address identifier.")
+        flags.append("Authority spoofing keyword embedded directly in payment address identifier.")
 
     score = min(1.0, round(score, 2))
     confidence = "CRITICAL" if score >= 0.7 else ("ELEVATED" if score >= 0.35 else "NOMINAL")
@@ -95,14 +105,14 @@ def profile_mule_account(vpa: str) -> Dict[str, Any]:
         "flags": flags or ["No money-mule synthetic traits identified."]
     }
 
-def generate_honeypot_counter_bait(category: str, attacker_text: str) -> Dict[str, str]:
+def generate_honeypot_counter_bait(category: str, attacker_text: str = "") -> Dict[str, str]:
     """
     Autonomous Deception Engine: Generates psychological counter-bait responses
     to keep scammers on the hook while extracting their secondary accounts and phone numbers.
     """
     cat = (category or "").lower()
 
-    if "arrest" in cat or "cbi" in cat or "narcotics" in cat:
+    if any(k in cat for k in ["arrest", "cbi", "narcotics", "police"]):
         persona = "Panicked Elderly Citizen"
         bait = (
             "Sir please don't send police to my house, I have heart problems! I am ready to clear my name. "
@@ -110,7 +120,7 @@ def generate_honeypot_counter_bait(category: str, attacker_text: str) -> Dict[st
             "where my son can directly transfer the security clearance deposit? Please give me 15 minutes."
         )
         objective = "Extracts secondary reserve mule bank account number / IFSC code."
-    elif "electricity" in cat or "bill" in cat:
+    elif any(k in cat for k in ["electricity", "bill"]):
         persona = "Confused Homeowner"
         bait = (
             "Sir I just checked my electricity receipt and payment went through last week! Which meter number is "
@@ -118,7 +128,7 @@ def generate_honeypot_counter_bait(category: str, attacker_text: str) -> Dict[st
             "The current link is showing server error."
         )
         objective = "Forces scammer to provide direct phone number or secondary payment portal."
-    elif "task" in cat or "job" in cat or "telegram" in cat:
+    elif any(k in cat for k in ["task", "job", "telegram"]):
         persona = "Eager High-Roller Investor"
         bait = (
             "I completed the YouTube review task and received the ₹150! I want to join the VIP ₹50,000 tier directly. "

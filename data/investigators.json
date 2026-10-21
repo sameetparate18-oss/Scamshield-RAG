@@ -1,0 +1,47 @@
+{
+  "OFFICER-701": {
+    "name": "Inspector S. G. Parate",
+    "badge_id": "OFFICER-701",
+    "agency": "Cyber Crime Police Station / SOC Unit",
+    "role": "Lead Cyber Forensics Examiner",
+    "salt": "0e82b834327f5f53",
+    "pin_hash": "914a6a9c16e1257fb28f5170dea9252fcc18ddb12aaf850a0309f6fe0176f7c8",
+    "created_at": "2026-10-22T03:42:35.099457"
+  },
+  "24137": {
+    "name": "Sameet Parate",
+    "badge_id": "24137",
+    "agency": "home",
+    "role": "Forensic Cyber Analyst",
+    "salt": "9e32516390d32a63",
+    "pin_hash": "b644fe1e5329ec23011608e1316d5cef941993520b3d0ca5df9ca73a1d2a0907",
+    "created_at": "2026-10-22T03:42:35.100446"
+  },
+  "24147": {
+    "name": "Kartika Patil",
+    "badge_id": "24147",
+    "agency": "CE",
+    "role": "Forensic Cyber Analyst",
+    "salt": "c75850c0dba76ee9",
+    "pin_hash": "0ca5256cc5a01b2837ed77e9342b4a3d2fdf79a376d41b7439e92bd0e6a51338",
+    "created_at": "2026-10-22T03:46:16.611863"
+  },
+  "24157": {
+    "name": "Kartika Patil",
+    "badge_id": "24157",
+    "agency": "CE",
+    "role": "Forensic Cyber Analyst",
+    "salt": "4e8d84a186605e84",
+    "pin_hash": "2139ee56837130eb52d80be73b64de9227777f2652ca846eb64f5612fb9554f2",
+    "created_at": "2026-10-22T03:46:48.655585"
+  },
+  "44444": {
+    "name": "Sameet Parate",
+    "badge_id": "44444",
+    "agency": "AI",
+    "role": "Forensic Cyber Analyst",
+    "salt": "a0f98e0a8893636f",
+    "pin_hash": "fc4f5701092ce4c0a2c12bee2c7c5b231efced3cd401c74815f2d4e85f3f414e",
+    "created_at": "2026-10-22T03:53:18.984362"
+  }
+}

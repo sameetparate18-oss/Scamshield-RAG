@@ -1,0 +1,18 @@
+{
+  "@context": "https://schema.org",
+  "@type": "DigitalDocumentEvidence",
+  "evidence_id": "EVID_20260904_093728_aab7b810",
+  "timestamp_utc": "2026-09-04T04:07:28.459881+00:00",
+  "hashes": {
+    "sha256": "aab7b8109f30ee7d8fe9597a3ab430c93edfc6e452fcd545d76921606b569e6c",
+    "md5": "6aabad718c56fc9ba5788d167071f8bb",
+    "byte_size": "401"
+  },
+  "custodian": "ScamShield Forensic Workstation v2.4",
+  "metadata": {
+    "source_tab": "Raw Communication / Script",
+    "filename": "raw_communication.txt",
+    "byte_size": "401",
+    "ingest_timestamp": "2026-09-04T09:37:28.459881"
+  }
+}

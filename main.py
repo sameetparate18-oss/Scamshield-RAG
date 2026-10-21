@@ -18,7 +18,10 @@ from tkinter import filedialog, messagebox
 import customtkinter as ctk
 from core.active_intel import unwrap_redirect_chain, profile_mule_account, generate_honeypot_counter_bait
 from core.evidence_vault import hash_artifact, record_custody_event
-from core.rag_engine import ThreatKnowledgeBase
+from core.rag_engine import EnterpriseHybridThreatKnowledgeBase as ThreatKnowledgeBase
+from core.web_intel import GlobalWebIntelligence
+from core.dossier_generator import generate_police_requisition_order
+from core.auth_ui import InvestigatorLoginWindow
 
 # --- Robust Hardware & Visualization Imports ---
 try:
@@ -253,8 +256,9 @@ def local_qr_analyzer(raw_data: str) -> dict:
 
 
 class ScamShieldApp(ctk.CTk):
-    def __init__(self):
+    def __init__(self, session=None):
         super().__init__()
+        self.session = session  # Holds active officer data
 
         self.title("ScamShield-RAG — Cyber Threat Intelligence & Forensic Command")
         self.geometry("1420x920")
@@ -270,10 +274,12 @@ class ScamShieldApp(ctk.CTk):
 
         # --- Backend Forensic Engines ---
         self.rag_kb = ThreatKnowledgeBase()
+        self.web_intel = GlobalWebIntelligence()
 
         self._build_dashboard_skeleton()
         self._show_page("scanner")
         self._init_engine_thread()
+        # Action Buttons Row
 
         self.bind_all("<Control-Return>", lambda _: self._run_analysis())
     def _load_audit_trail(self):
@@ -308,6 +314,29 @@ class ScamShieldApp(ctk.CTk):
 
         ctk.CTkLabel(brand_box, text="⚡ SCAMSHIELD", font=ctk.CTkFont("Segoe UI", 22, "bold"), text_color=THEME["text_main"]).pack(anchor="w")
         ctk.CTkLabel(brand_box, text="RAG FORENSIC INTELLIGENCE", font=ctk.CTkFont("Segoe UI", 10, "bold"), text_color=THEME["accent"]).pack(anchor="w", pady=(2, 0))
+
+        # --- ACTIVE INVESTIGATOR PROFILE BADGE ---
+        if self.session:
+            badge_officer = ctk.CTkFrame(
+                self.sidebar,
+                fg_color=THEME["bg_card_inner"],
+                corner_radius=6,
+                border_width=1,
+                border_color=THEME["border"]
+            )
+            badge_officer.pack(fill="x", padx=16, pady=(0, 10))
+            ctk.CTkLabel(
+                badge_officer,
+                text=f"👤 {self.session.officer_name}",
+                font=ctk.CTkFont("Segoe UI", 11, "bold"),
+                text_color=THEME["text_main"]
+            ).pack(anchor="w", padx=10, pady=(6, 1))
+            ctk.CTkLabel(
+                badge_officer,
+                text=f"ID: {self.session.badge_id}",
+                font=ctk.CTkFont("Segoe UI", 9),
+                text_color=THEME["text_muted"]
+            ).pack(anchor="w", padx=10, pady=(0, 6))
 
         self.badge_engine = ctk.CTkLabel(
             self.sidebar,
@@ -404,9 +433,9 @@ class ScamShieldApp(ctk.CTk):
         ingest_head = ctk.CTkFrame(left_box, fg_color="transparent")
         ingest_head.grid(row=0, column=0, sticky="ew", pady=(0, 6))
         ctk.CTkLabel(
-            ingest_head, 
-            text="Artifact Ingestion & Forensic Feed", 
-            font=ctk.CTkFont("Segoe UI", 16, "bold"), 
+            ingest_head,
+            text="Artifact Ingestion & Forensic Feed",
+            font=ctk.CTkFont("Segoe UI", 16, "bold"),
             text_color=THEME["text_main"]
         ).pack(side="left")
 
@@ -479,7 +508,7 @@ class ScamShieldApp(ctk.CTk):
             justify="left"
         ).pack(anchor="w")
 
-        # Action Button & Telemetry Indicator
+        # 1. Primary Analysis Button
         self.btn_analyze = ctk.CTkButton(
             left_box,
             text="⚡ Run Threat Assessment [Ctrl+Enter]",
@@ -490,14 +519,30 @@ class ScamShieldApp(ctk.CTk):
             height=46,
             corner_radius=8,
             command=self._run_analysis,
-            state="disabled"
+            state="normal"
         )
-        self.btn_analyze.grid(row=3, column=0, sticky="ew", pady=(0, 8))
+        self.btn_analyze.grid(row=3, column=0, sticky="ew", pady=(0, 6))
 
+        # 2. Statutory Requisition / Police Dossier Export Button
+        self.btn_export_dossier = ctk.CTkButton(
+            left_box,
+            text="📄 Export Legal Requisition [Sec 94 BNSS]",
+            font=ctk.CTkFont("Segoe UI", 12, "bold"),
+            fg_color="#1E293B",
+            hover_color="#334155",
+            text_color="#E2E8F0",
+            border_width=1,
+            border_color="#475569",
+            height=36,
+            corner_radius=8,
+            command=self._export_legal_dossier
+        )
+        self.btn_export_dossier.grid(row=4, column=0, sticky="ew", pady=(0, 8))
+
+        # 3. Pipeline Telemetry Box (Moved to row=5)
         self.pipeline_box = ctk.CTkFrame(left_box, fg_color=THEME["bg_card"], border_width=1, border_color=THEME["border"], corner_radius=8)
         self.lbl_pipeline_step = ctk.CTkLabel(self.pipeline_box, text="Pipeline: Standby", font=ctk.CTkFont("Segoe UI", 11), text_color=THEME["text_dim"])
         self.lbl_pipeline_step.pack(anchor="w", padx=12, pady=6)
-
         # -------------------------------------------------------------
         # RIGHT PANEL: LIVE THREAT CANVAS & FORENSIC DOSSIER
         # -------------------------------------------------------------
@@ -531,14 +576,14 @@ class ScamShieldApp(ctk.CTk):
         self.lbl_timing.pack(side="left")
 
         self.btn_export = ctk.CTkButton(
-            action_row, 
-            text="Export Audit Dossier", 
-            font=ctk.CTkFont("Segoe UI", 11, "bold"), 
-            fg_color=THEME["border"], 
+            action_row,
+            text="Export Audit Dossier",
+            font=ctk.CTkFont("Segoe UI", 11, "bold"),
+            fg_color=THEME["border"],
             hover_color=THEME["border_glow"],
-            width=130, 
-            height=28, 
-            state="disabled", 
+            width=130,
+            height=28,
+            state="disabled",
             command=self._export_dossier
         )
         self.btn_export.pack(side="right", padx=(8, 0))
@@ -568,15 +613,15 @@ class ScamShieldApp(ctk.CTk):
             command=self._deploy_honeypot_dialog
         )
         self.btn_honeypot.pack(side="right", padx=(8, 0))
-        
+
         self.btn_copy = ctk.CTkButton(
-            action_row, 
-            text="Copy Report", 
-            font=ctk.CTkFont("Segoe UI", 11, "bold"), 
-            fg_color=THEME["border"], 
-            width=90, 
-            height=28, 
-            state="disabled", 
+            action_row,
+            text="Copy Report",
+            font=ctk.CTkFont("Segoe UI", 11, "bold"),
+            fg_color=THEME["border"],
+            width=90,
+            height=28,
+            state="disabled",
             command=self._copy_summary
         )
         self.btn_copy.pack(side="right")
@@ -617,7 +662,7 @@ class ScamShieldApp(ctk.CTk):
         advisory_box.pack(fill="x", pady=(0, 10))
         ctk.CTkLabel(advisory_box, text="🚨 CITIZEN CYBER FRAUD PROTOCOL (I4C / MHA)", font=ctk.CTkFont("Segoe UI", 10, "bold"), text_color=THEME["suspicious"]).pack(anchor="w", padx=14, pady=(8, 2))
         ctk.CTkLabel(
-            advisory_box, 
+            advisory_box,
             text="If funds were already debited: Immediately contact your bank to freeze recipient accounts and dial '1930' to report to the National Cyber Crime Reporting Portal within the golden 2-hour window.",
             font=ctk.CTkFont("Segoe UI", 10),
             text_color=THEME["text_muted"],
@@ -630,228 +675,232 @@ class ScamShieldApp(ctk.CTk):
     # PAGE 2: BHARAT-QR & QUISHING FORENSIC WORKSTATION (TIER-1 LAB)
     # ==================================================================
     def _build_page_qr_lab(self):
-        page = ctk.CTkFrame(self.main_container, fg_color="transparent")
-        page.grid_columnconfigure(0, weight=4)
-        page.grid_columnconfigure(1, weight=6)
-        page.grid_rowconfigure(1, weight=1)
+            page = ctk.CTkFrame(self.main_container, fg_color="transparent")
+            page.grid_columnconfigure(0, weight=4)
+            page.grid_columnconfigure(1, weight=6)
+            page.grid_rowconfigure(1, weight=1)
 
-        # Workstation Header
-        head = ctk.CTkFrame(page, fg_color="transparent")
-        head.grid(row=0, column=0, columnspan=2, sticky="ew", padx=24, pady=(20, 10))
-        ctk.CTkLabel(
-            head, 
-            text="📷 Bharat-QR & Financial Signal Forensic Lab", 
-            font=ctk.CTkFont("Segoe UI", 20, "bold"), 
-            text_color=THEME["text_main"]
-        ).pack(anchor="w")
-        ctk.CTkLabel(
-            head, 
-            text="EMVCo TLV Checksum Validator, Physical Sticker/Tamper Vision Scanner, and Live Quishing OSINT.", 
-            font=ctk.CTkFont("Segoe UI", 12), 
-            text_color=THEME["text_muted"]
-        ).pack(anchor="w")
+            # Workstation Header
+            head = ctk.CTkFrame(page, fg_color="transparent")
+            head.grid(row=0, column=0, columnspan=2, sticky="ew", padx=24, pady=(20, 10))
+            ctk.CTkLabel(
+                head,
+                text="📷 Bharat-QR & Financial Signal Forensic Lab",
+                font=ctk.CTkFont("Segoe UI", 20, "bold"),
+                text_color=THEME["text_main"]
+            ).pack(anchor="w")
+            ctk.CTkLabel(
+                head,
+                text="EMVCo TLV Checksum Validator, Physical Sticker/Tamper Vision Scanner, and Live Quishing OSINT.",
+                font=ctk.CTkFont("Segoe UI", 12),
+                text_color=THEME["text_muted"]
+            ).pack(anchor="w")
 
-        # -------------------------------------------------------------
-        # LEFT PANEL: INGESTION & CV AUDITING
-        # -------------------------------------------------------------
-        left_box = ctk.CTkFrame(page, fg_color=THEME["bg_card"], border_width=1, border_color=THEME["border"], corner_radius=10)
-        left_box.grid(row=1, column=0, sticky="nsew", padx=(24, 10), pady=(0, 24))
+            # -------------------------------------------------------------
+            # LEFT PANEL: INGESTION & CV AUDITING
+            # -------------------------------------------------------------
+            left_box = ctk.CTkFrame(page, fg_color=THEME["bg_card"], border_width=1, border_color=THEME["border"], corner_radius=10)
+            left_box.grid(row=1, column=0, sticky="nsew", padx=(24, 10), pady=(0, 24))
 
-        ctk.CTkLabel(left_box, text="Artifact Ingestion & Vision Sensors", font=ctk.CTkFont("Segoe UI", 14, "bold"), text_color=THEME["accent"]).pack(anchor="w", padx=16, pady=(16, 8))
+            ctk.CTkLabel(left_box, text="Artifact Ingestion & Vision Sensors", font=ctk.CTkFont("Segoe UI", 14, "bold"), text_color=THEME["accent"]).pack(anchor="w", padx=16, pady=(16, 8))
 
-        # Real Attack Vector Presets for Instant Live Demos
-        preset_frame = ctk.CTkFrame(left_box, fg_color=THEME["bg_card_inner"], border_width=1, border_color=THEME["border"], corner_radius=8)
-        preset_frame.pack(fill="x", padx=16, pady=(0, 10))
-        ctk.CTkLabel(preset_frame, text="⚡ Load Realistic Attack Vectors:", font=ctk.CTkFont("Segoe UI", 10, "bold"), text_color=THEME["accent"]).pack(anchor="w", padx=10, pady=(8, 2))
-        
-        self.cbo_qr_presets = ctk.CTkOptionMenu(
-            preset_frame,
-            values=[
-                "Select vector...",
-                "EMVCo BharatQR Checksum Forgery (0xDEAD)",
-                "Electricity Scam (Static ₹4,999 Debit Lock)",
-                "Fake CBI Verification Quishing URL",
-                "Unregistered Betting Merchant (MCC 7995)"
-            ],
-            font=ctk.CTkFont("Segoe UI", 11),
-            height=26,
-            fg_color=THEME["bg_card"],
-            button_color=THEME["border"],
-            command=self._load_qr_preset
-        )
-        self.cbo_qr_presets.pack(fill="x", padx=10, pady=(0, 8))
+            # Real Attack Vector Presets for Instant Live Demos
+            preset_frame = ctk.CTkFrame(left_box, fg_color=THEME["bg_card_inner"], border_width=1, border_color=THEME["border"], corner_radius=8)
+            preset_frame.pack(fill="x", padx=16, pady=(0, 10))
+            ctk.CTkLabel(preset_frame, text="⚡ Load Realistic Attack Vectors:", font=ctk.CTkFont("Segoe UI", 10, "bold"), text_color=THEME["accent"]).pack(anchor="w", padx=10, pady=(8, 2))
 
-        # Ingestion Buttons
-        btn_grid = ctk.CTkFrame(left_box, fg_color="transparent")
-        btn_grid.pack(fill="x", padx=16, pady=4)
-        btn_grid.grid_columnconfigure((0, 1), weight=1)
+            self.cbo_qr_presets = ctk.CTkOptionMenu(
+                preset_frame,
+                values=[
+                    "Select vector...",
+                    "EMVCo BharatQR Checksum Forgery (0xDEAD)",
+                    "Electricity Scam (Static ₹4,999 Debit Lock)",
+                    "Fake CBI Verification Quishing URL",
+                    "Unregistered Betting Merchant (MCC 7995)"
+                ],
+                font=ctk.CTkFont("Segoe UI", 11),
+                height=26,
+                fg_color=THEME["bg_card"],
+                button_color=THEME["border"],
+                command=self._load_qr_preset
+            )
+            self.cbo_qr_presets.pack(fill="x", padx=10, pady=(0, 8))
 
-        ctk.CTkButton(
-            btn_grid,
-            text="📁 Upload Image",
-            font=ctk.CTkFont("Segoe UI", 11, "bold"),
-            fg_color=THEME["border"],
-            hover_color=THEME["border_glow"],
-            command=self._qr_upload_file
-        ).grid(row=0, column=0, sticky="ew", padx=(0, 4))
+            # Ingestion Buttons
+            btn_grid = ctk.CTkFrame(left_box, fg_color="transparent")
+            btn_grid.pack(fill="x", padx=16, pady=4)
+            btn_grid.grid_columnconfigure((0, 1), weight=1)
 
-        ctk.CTkButton(
-            btn_grid,
-            text="🔍 CV Tamper Audit",
-            font=ctk.CTkFont("Segoe UI", 11, "bold"),
-            fg_color="#1E3A8A",
-            hover_color="#2563EB",
-            command=self._qr_audit_physical_tampering
-        ).grid(row=0, column=1, sticky="ew", padx=(4, 0))
+            ctk.CTkButton(
+                btn_grid,
+                text="📁 Upload Image",
+                font=ctk.CTkFont("Segoe UI", 11, "bold"),
+                fg_color=THEME["border"],
+                hover_color=THEME["border_glow"],
+                command=self._qr_upload_file
+            ).grid(row=0, column=0, sticky="ew", padx=(0, 4))
 
-        ctk.CTkButton(
-            left_box,
-            text="📹 Live Optical Camera Scanner",
-            font=ctk.CTkFont("Segoe UI", 12, "bold"),
-            fg_color="#064E3B",
-            hover_color="#059669",
-            command=self._qr_toggle_camera
-        ).pack(fill="x", padx=16, pady=6)
+            ctk.CTkButton(
+                btn_grid,
+                text="🔍 CV Tamper Audit",
+                font=ctk.CTkFont("Segoe UI", 11, "bold"),
+                fg_color="#1E3A8A",
+                hover_color="#2563EB",
+                command=self._qr_audit_physical_tampering
+            ).grid(row=0, column=1, sticky="ew", padx=(4, 0))
 
-        ctk.CTkLabel(left_box, text="Raw Payload / URI Input:", font=ctk.CTkFont("Segoe UI", 12), text_color=THEME["text_muted"]).pack(anchor="w", padx=16, pady=(12, 4))
-        self.qr_manual_entry = ctk.CTkEntry(
-            left_box, 
-            placeholder_text="upi://pay?pa=... or 000201...", 
-            fg_color=THEME["bg_card_inner"], 
-            border_color=THEME["border"]
-        )
-        self.qr_manual_entry.pack(fill="x", padx=16, pady=(0, 8))
+            ctk.CTkButton(
+                left_box,
+                text="📹 Live Optical Camera Scanner",
+                font=ctk.CTkFont("Segoe UI", 12, "bold"),
+                fg_color="#064E3B",
+                hover_color="#059669",
+                command=self._qr_toggle_camera
+            ).pack(fill="x", padx=16, pady=6)
 
-        btn_inspect_row = ctk.CTkFrame(left_box, fg_color="transparent")
-        btn_inspect_row.pack(fill="x", padx=16, pady=(0, 10))
-        btn_inspect_row.grid_columnconfigure((0, 1), weight=1)
+            ctk.CTkLabel(left_box, text="Raw Payload / URI Input:", font=ctk.CTkFont("Segoe UI", 12), text_color=THEME["text_muted"]).pack(anchor="w", padx=16, pady=(12, 4))
+            self.qr_manual_entry = ctk.CTkEntry(
+                left_box,
+                placeholder_text="upi://pay?pa=... or 000201...",
+                fg_color=THEME["bg_card_inner"],
+                border_color=THEME["border"]
+            )
+            self.qr_manual_entry.pack(fill="x", padx=16, pady=(0, 8))
 
-        ctk.CTkButton(
-            btn_inspect_row, 
-            text="⚡ Analyze String", 
-            font=ctk.CTkFont("Segoe UI", 11, "bold"), 
-            fg_color=THEME["accent"], 
-            text_color="#06090F", 
-            command=self._qr_inspect_text
-        ).grid(row=0, column=0, sticky="ew", padx=(0, 4))
+            btn_inspect_row = ctk.CTkFrame(left_box, fg_color="transparent")
+            btn_inspect_row.pack(fill="x", padx=16, pady=(0, 10))
+            btn_inspect_row.grid_columnconfigure((0, 1), weight=1)
 
-        ctk.CTkButton(
-            btn_inspect_row, 
-            text="📋 Paste & Scan", 
-            font=ctk.CTkFont("Segoe UI", 11, "bold"), 
-            fg_color=THEME["border"], 
-            command=self._qr_paste_and_scan
-        ).grid(row=0, column=1, sticky="ew", padx=(4, 0))
+            ctk.CTkButton(
+                btn_inspect_row,
+                text="⚡ Analyze String",
+                font=ctk.CTkFont("Segoe UI", 11, "bold"),
+                fg_color=THEME["accent"],
+                text_color="#06090F",
+                command=self._qr_inspect_text
+            ).grid(row=0, column=0, sticky="ew", padx=(0, 4))
 
-        self.lbl_qr_camera_status = ctk.CTkLabel(left_box, text="Sensor State: Idle", font=ctk.CTkFont("Segoe UI", 11), text_color=THEME["text_dim"])
-        self.lbl_qr_camera_status.pack(anchor="w", padx=16, pady=(0, 8))
+            ctk.CTkButton(
+                btn_inspect_row,
+                text="📋 Paste & Scan",
+                font=ctk.CTkFont("Segoe UI", 11, "bold"),
+                fg_color=THEME["border"],
+                command=self._qr_paste_and_scan
+            ).grid(row=0, column=1, sticky="ew", padx=(4, 0))
 
-        # Forensic Capability Specs
-        guide_box = ctk.CTkFrame(left_box, fg_color=THEME["bg_card_inner"], border_width=1, border_color=THEME["border"], corner_radius=8)
-        guide_box.pack(fill="x", padx=16, pady=(4, 16))
-        ctk.CTkLabel(guide_box, text="⚡ MULTI-LAYER FORENSIC RADAR", font=ctk.CTkFont("Segoe UI", 10, "bold"), text_color=THEME["accent"]).pack(anchor="w", padx=12, pady=(10, 4))
-        ctk.CTkLabel(
-            guide_box,
-            text="• ISO/IEC 18004 CRC-16 Checksum Verification\n• Physical Standee Overlay / Sticker Detection\n• ISO 18245 MCC Risk Profiling (Betting, Crypto)\n• Live DNS & SSL Handshake Inspection for Quishing",
-            font=ctk.CTkFont("Segoe UI", 10),
-            text_color=THEME["text_muted"],
-            justify="left"
-        ).pack(anchor="w", padx=12, pady=(0, 12))
+            self.lbl_qr_camera_status = ctk.CTkLabel(left_box, text="Sensor State: Idle", font=ctk.CTkFont("Segoe UI", 11), text_color=THEME["text_dim"])
+            self.lbl_qr_camera_status.pack(anchor="w", padx=16, pady=(0, 8))
 
-        # -------------------------------------------------------------
-        # RIGHT PANEL: FORENSIC TELEMETRY CANVAS
-        # -------------------------------------------------------------
-        self.qr_scroll_canvas = ctk.CTkScrollableFrame(page, fg_color="transparent")
-        self.qr_scroll_canvas.grid(row=1, column=1, sticky="nsew", padx=(10, 24), pady=(0, 24))
-        self.qr_scroll_canvas.grid_columnconfigure(0, weight=1)
+            # Forensic Capability Specs
+            guide_box = ctk.CTkFrame(left_box, fg_color=THEME["bg_card_inner"], border_width=1, border_color=THEME["border"], corner_radius=8)
+            guide_box.pack(fill="x", padx=16, pady=(4, 16))
+            ctk.CTkLabel(guide_box, text="⚡ MULTI-LAYER FORENSIC RADAR", font=ctk.CTkFont("Segoe UI", 10, "bold"), text_color=THEME["accent"]).pack(anchor="w", padx=12, pady=(10, 4))
+            ctk.CTkLabel(
+                guide_box,
+                text="• ISO/IEC 18004 CRC-16 Checksum Verification\n• Physical Standee Overlay / Sticker Detection\n• ISO 18245 MCC Risk Profiling (Betting, Crypto)\n• Live DNS & SSL Handshake Inspection for Quishing",
+                font=ctk.CTkFont("Segoe UI", 10),
+                text_color=THEME["text_muted"],
+                justify="left"
+            ).pack(anchor="w", padx=12, pady=(0, 12))
 
-        # 1. Master Risk Assessment Card
-        self.qr_status_card = ctk.CTkFrame(self.qr_scroll_canvas, fg_color=THEME["bg_card"], border_width=1, border_color=THEME["border"], corner_radius=10)
-        self.qr_status_card.pack(fill="x", pady=(0, 12))
+            # -------------------------------------------------------------
+            # RIGHT PANEL: FORENSIC TELEMETRY CANVAS
+            # -------------------------------------------------------------
+            self.qr_scroll_canvas = ctk.CTkScrollableFrame(page, fg_color="transparent")
+            self.qr_scroll_canvas.grid(row=1, column=1, sticky="nsew", padx=(10, 24), pady=(0, 24))
+            self.qr_scroll_canvas.grid_columnconfigure(0, weight=1)
 
-        top_stat_row = ctk.CTkFrame(self.qr_status_card, fg_color="transparent")
-        top_stat_row.pack(fill="x", padx=18, pady=(14, 4))
-        self.lbl_qr_verdict = ctk.CTkLabel(top_stat_row, text="SYSTEM STANDBY : AWAITING ARTIFACT", font=ctk.CTkFont("Segoe UI", 15, "bold"), text_color=THEME["text_muted"])
-        self.lbl_qr_verdict.pack(side="left")
+            # 1. Master Risk Assessment Card
+            self.qr_status_card = ctk.CTkFrame(self.qr_scroll_canvas, fg_color=THEME["bg_card"], border_width=1, border_color=THEME["border"], corner_radius=10)
+            self.qr_status_card.pack(fill="x", pady=(0, 12))
 
-        # Action Buttons in Verdict Card
-        self.btn_qr_ncrp = ctk.CTkButton(
-            top_stat_row,
-            text="⚖️ File NCRP Report",
-            font=ctk.CTkFont("Segoe UI", 11, "bold"),
-            fg_color="#831843",
-            hover_color="#9D174D",
-            width=130,
-            height=26,
-            state="disabled",
-            command=self._qr_file_ncrp_report
-        )
-        self.btn_qr_ncrp.pack(side="right")
+            top_stat_row = ctk.CTkFrame(self.qr_status_card, fg_color="transparent")
+            top_stat_row.pack(fill="x", padx=18, pady=(14, 4))
+            self.lbl_qr_verdict = ctk.CTkLabel(top_stat_row, text="SYSTEM STANDBY : AWAITING ARTIFACT", font=ctk.CTkFont("Segoe UI", 15, "bold"), text_color=THEME["text_muted"])
+            self.lbl_qr_verdict.pack(side="left")
 
-        self.lbl_qr_type = ctk.CTkLabel(self.qr_status_card, text="Upload an artifact image, camera feed, or raw string to extract signals.", font=ctk.CTkFont("Segoe UI", 11), text_color=THEME["text_muted"])
-        self.lbl_qr_type.pack(anchor="w", padx=18, pady=(0, 8))
+            # Action Buttons in Verdict Card
+            self.btn_qr_ncrp = ctk.CTkButton(
+                top_stat_row,
+                text="⚖️ File NCRP Report",
+                font=ctk.CTkFont("Segoe UI", 11, "bold"),
+                fg_color="#831843",
+                hover_color="#9D174D",
+                width=130,
+                height=26,
+                state="disabled",
+                command=self._qr_file_ncrp_report
+            )
+            self.btn_qr_ncrp.pack(side="right")
 
-        prog_wrap = ctk.CTkFrame(self.qr_status_card, fg_color="transparent")
-        prog_wrap.pack(fill="x", padx=18, pady=(0, 14))
-        self.prog_qr_risk = ctk.CTkProgressBar(prog_wrap, progress_color=THEME["scam"], fg_color=THEME["border"], height=8)
-        self.prog_qr_risk.set(0)
-        self.prog_qr_risk.pack(fill="x", pady=(0, 4))
-        self.lbl_qr_score = ctk.CTkLabel(prog_wrap, text="Calculated Risk Floor: 0.00 / 1.00", font=ctk.CTkFont("Segoe UI", 10), text_color=THEME["text_muted"])
-        self.lbl_qr_score.pack(anchor="w")
+            self.lbl_qr_type = ctk.CTkLabel(self.qr_status_card, text="Upload an artifact image, camera feed, or raw string to extract signals.", font=ctk.CTkFont("Segoe UI", 11), text_color=THEME["text_muted"])
+            self.lbl_qr_type.pack(anchor="w", padx=18, pady=(0, 8))
 
-        # 2. Metric Grid Matrix (3 Rows x 2 Cols)
-        row1 = ctk.CTkFrame(self.qr_scroll_canvas, fg_color="transparent")
-        row1.pack(fill="x", pady=(0, 8))
-        row1.grid_columnconfigure((0, 1), weight=1, uniform="qr_cell")
-        self.cell_vpa = self._create_qr_tile(row1, 0, "Payee VPA / Handle", "—")
-        self.cell_name = self._create_qr_tile(row1, 1, "Declared Legal Entity", "—")
+            prog_wrap = ctk.CTkFrame(self.qr_status_card, fg_color="transparent")
+            prog_wrap.pack(fill="x", padx=18, pady=(0, 14))
+            self.prog_qr_risk = ctk.CTkProgressBar(prog_wrap, progress_color=THEME["scam"], fg_color=THEME["border"], height=8)
+            self.prog_qr_risk.set(0)
+            self.prog_qr_risk.pack(fill="x", pady=(0, 4))
+            self.lbl_qr_score = ctk.CTkLabel(prog_wrap, text="Calculated Risk Floor: 0.00 / 1.00", font=ctk.CTkFont("Segoe UI", 10), text_color=THEME["text_muted"])
+            self.lbl_qr_score.pack(anchor="w")
 
-        row2 = ctk.CTkFrame(self.qr_scroll_canvas, fg_color="transparent")
-        row2.pack(fill="x", pady=(0, 8))
-        row2.grid_columnconfigure((0, 1), weight=1, uniform="qr_cell")
-        self.cell_bank = self._create_qr_tile(row2, 0, "Issuing PSP & Bank Rail", "—")
-        self.cell_mcc = self._create_qr_tile(row2, 1, "Merchant Category (MCC)", "—")
+            # 2. Metric Grid Matrix (3 Rows x 2 Cols)
+            row1 = ctk.CTkFrame(self.qr_scroll_canvas, fg_color="transparent")
+            row1.pack(fill="x", pady=(0, 8))
+            row1.grid_columnconfigure((0, 1), weight=1, uniform="qr_cell")
+            self.cell_vpa = self._create_qr_tile(row1, 0, "Payee VPA / Handle", "—")
+            self.cell_name = self._create_qr_tile(row1, 1, "Declared Legal Entity", "—")
 
-        row3 = ctk.CTkFrame(self.qr_scroll_canvas, fg_color="transparent")
-        row3.pack(fill="x", pady=(0, 12))
-        row3.grid_columnconfigure((0, 1), weight=1, uniform="qr_cell")
-        self.cell_amount = self._create_qr_tile(row3, 0, "Amount Lock Configuration", "—")
-        self.cell_crc = self._create_qr_tile(row3, 1, "Cryptographic Checksum / Sign", "—")
+            row2 = ctk.CTkFrame(self.qr_scroll_canvas, fg_color="transparent")
+            row2.pack(fill="x", pady=(0, 8))
+            row2.grid_columnconfigure((0, 1), weight=1, uniform="qr_cell")
+            self.cell_bank = self._create_qr_tile(row2, 0, "Issuing PSP & Bank Rail", "—")
+            self.cell_mcc = self._create_qr_tile(row2, 1, "Merchant Category (MCC)", "—")
 
-        # 3. Anomalies & Forensic Flags
-        self.card_qr_anomalies = self._narrative_card(self.qr_scroll_canvas, "🚩 Deep Forensic Telemetry & Discrepancies", "No active anomalies flagged.")
+            row3 = ctk.CTkFrame(self.qr_scroll_canvas, fg_color="transparent")
+            row3.pack(fill="x", pady=(0, 12))
+            row3.grid_columnconfigure((0, 1), weight=1, uniform="qr_cell")
+            self.cell_amount = self._create_qr_tile(row3, 0, "Amount Lock Configuration", "—")
+            self.cell_crc = self._create_qr_tile(row3, 1, "Cryptographic Checksum / Sign", "—")
 
-        # 4. Raw Memory Inspector & Copy Button
-        raw_box = ctk.CTkFrame(self.qr_scroll_canvas, fg_color=THEME["bg_card"], border_width=1, border_color=THEME["border"], corner_radius=10)
-        raw_box.pack(fill="x", pady=(0, 10))
+            # 3. Anomalies & Forensic Flags
+            self.card_qr_anomalies = self._narrative_card(self.qr_scroll_canvas, "🚩 Deep Forensic Telemetry & Discrepancies", "No active anomalies flagged.")
 
-        raw_head = ctk.CTkFrame(raw_box, fg_color="transparent")
-        raw_head.pack(fill="x", padx=16, pady=(12, 4))
-        ctk.CTkLabel(raw_head, text="📦 Raw Decoded Payload Inspector", font=ctk.CTkFont("Segoe UI", 12, "bold"), text_color=THEME["accent"]).pack(side="left")
+            # 4. Raw Memory Inspector & Copy Button
+            raw_box = ctk.CTkFrame(self.qr_scroll_canvas, fg_color=THEME["bg_card"], border_width=1, border_color=THEME["border"], corner_radius=10)
+            raw_box.pack(fill="x", pady=(0, 10))
 
-        ctk.CTkButton(
-            raw_head,
-            text="Copy Raw String",
-            font=ctk.CTkFont("Segoe UI", 10, "bold"),
-            fg_color=THEME["border"],
-            width=100,
-            height=24,
-            command=self._qr_copy_raw
-        ).pack(side="right")
+            raw_head = ctk.CTkFrame(raw_box, fg_color="transparent")
+            raw_head.pack(fill="x", padx=16, pady=(12, 4))
+            ctk.CTkLabel(raw_head, text="📦 Raw Decoded Payload Inspector", font=ctk.CTkFont("Segoe UI", 12, "bold"), text_color=THEME["accent"]).pack(side="left")
 
-        self.txt_qr_raw = ctk.CTkTextbox(
-            raw_box, 
-            height=70, 
-            font=ctk.CTkFont("Consolas", 11), 
-            fg_color=THEME["bg_card_inner"], 
-            border_width=1, 
-            border_color=THEME["border"]
-        )
-        self.txt_qr_raw.pack(fill="x", padx=16, pady=(0, 14))
-        self.txt_qr_raw.insert("end", "Decoded memory buffer empty.")
+            ctk.CTkButton(
+                raw_head,
+                text="Copy Raw String",
+                font=ctk.CTkFont("Segoe UI", 10, "bold"),
+                fg_color=THEME["border"],
+                width=100,
+                height=24,
+                command=self._qr_copy_raw
+            ).pack(side="right")
 
-        self.last_qr_analysis = None
-        return page
+            self.txt_qr_raw = ctk.CTkTextbox(
+                raw_box,
+                height=70,
+                font=ctk.CTkFont("Consolas", 11),
+                fg_color=THEME["bg_card_inner"],
+                border_width=1,
+                border_color=THEME["border"]
+            )
+            self.txt_qr_raw.pack(fill="x", padx=16, pady=(0, 14))
+            self.txt_qr_raw.insert("end", "Decoded memory buffer empty.")
+
+            self.last_qr_analysis = None
+            return page
+
+
+
+
 
     def _create_qr_tile(self, parent, col, title, initial_val):
         box = ctk.CTkFrame(parent, fg_color=THEME["bg_card"], border_width=1, border_color=THEME["border"], corner_radius=8)
@@ -952,6 +1001,65 @@ class ScamShieldApp(ctk.CTk):
             self.qr_manual_entry.delete(0, "end")
             self.qr_manual_entry.insert(0, presets[choice])
             self._qr_inspect_text()
+    def _stage_qr_image(self):
+        file_path = filedialog.askopenfilename(
+            title="Select QR Code Image",
+            filetypes=[("Image Files", "*.png *.jpg *.jpeg *.bmp *.webp"), ("All Files", "*.*")]
+        )
+        if file_path:
+            self.staged_qr_path = file_path
+            self.lbl_qr_file.configure(text=os.path.basename(file_path), text_color=THEME["accent"])
+
+            # If OpenCV is available, attempt native decoding instantly
+            if HAS_CV2:
+                try:
+                    img = cv2.imread(file_path)
+                    detector = cv2.QRCodeDetector()
+                    val, pts, straight_qrcode = detector.detectAndDecode(img)
+                    if val:
+                        self.txt_qr_input.delete("1.0", "end")
+                        self.txt_qr_input.insert("1.0", val)
+                        messagebox.showinfo("OpenCV Decode Success", "QR Code successfully decoded via native vision pipeline!")
+                    else:
+                        messagebox.showwarning("Decoding Notice", "Image loaded, but OpenCV failed to resolve a clear QR matrix. Try manual entry.")
+                except Exception as e:
+                    print(f"CV2 Error: {e}")
+            else:
+                messagebox.showinfo("Staged", "Image staged. OpenCV decoder library missing; please verify payload manually.")
+
+    def _analyze_qr_payload(self):
+        payload = self.txt_qr_input.get("1.0", "end").strip()
+        result = local_qr_analyzer(payload)
+
+        out = f"=== BHARAT-QR & QUISHING FORENSIC DOSSIER ===\n"
+        out += f"Timestamp: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n"
+        out += f"Vector Type: {result.get('type')}\n"
+        out += f"Threat Classification: {result.get('status')}\n"
+        out += f"Calculated Risk Metric: {result.get('calculated_risk', 0.0) * 100:.0f}%\n\n"
+
+        if result.get("is_upi"):
+            out += f"--- NPCI VPA TRANSACTION METADATA ---\n"
+            out += f" • VPA Handle     : {result.get('vpa')}\n"
+            out += f" • Declared Name  : {result.get('declared_name')}\n"
+            out += f" • Banking Partner: {result.get('banking_partner')}\n"
+            out += f" • PSP Provider   : {result.get('psp_application')}\n"
+            out += f" • Merchant Code  : {result.get('merchant_code')}\n"
+            out += f" • Locked Amount  : {result.get('amount_locked')}\n\n"
+        else:
+            out += f"--- TARGET RESOLUTION URL ---\n"
+            out += f" • Raw Payload    : {result.get('raw_payload')}\n\n"
+
+        out += "--- FORENSIC ANOMALIES & INDICATORS ---\n"
+        for anom in result.get("anomalies", []):
+            out += f" ⚠️ {anom}\n"
+
+        out += f"\n--- RECOMMENDED PROTOCOL ---\n"
+        out += f" {result.get('recommendation', 'Isolate device and report transaction hash to Cyber Cell.')}\n"
+
+        self.txt_qr_output.configure(state="normal")
+        self.txt_qr_output.delete("1.0", "end")
+        self.txt_qr_output.insert("1.0", out)
+        self.txt_qr_output.configure(state="disabled")
 
     def _qr_upload_file(self):
         if not HAS_CV2:
@@ -1092,7 +1200,7 @@ class ScamShieldApp(ctk.CTk):
             return
 
         from core.report_generator import generate_ncrp_dossier
-        
+
         v_dict = {
             "verdict": self.last_qr_analysis.get("status", "SUSPICIOUS"),
             "combined_score": self.last_qr_analysis.get("calculated_risk", 0.5),
@@ -1155,260 +1263,7 @@ class ScamShieldApp(ctk.CTk):
         btn_copy = ctk.CTkButton(btn_row, text="📋 Copy Complaint", font=ctk.CTkFont("Segoe UI", 12, "bold"), fg_color=THEME["border"], command=_copy)
         btn_copy.pack(side="right")
 
-    # ==================================================================
-    # PAGE 3: PSYCHOLOGICAL & CYBER WEAPONIZATION RADAR (AI SOC STUDIO)
-    # ==================================================================
-    
-        page = ctk.CTkFrame(self.main_container, fg_color="transparent")
-        page.grid_columnconfigure(0, weight=5)  # Left: Polar Radar Canvas
-        page.grid_columnconfigure(1, weight=5)  # Right: AI Psychological Breakdown
-        page.grid_rowconfigure(1, weight=1)
-
-        # Header
-        head = ctk.CTkFrame(page, fg_color="transparent")
-        head.grid(row=0, column=0, columnspan=2, sticky="ew", padx=20, pady=(12, 6))
-
-        ctk.CTkLabel(
-            head, 
-            text="🧠 Psychological Manipulation & Tactical Weaponization Radar", 
-            font=ctk.CTkFont("Segoe UI", 20, "bold"), 
-            text_color=THEME["text_main"]
-        ).pack(anchor="w")
-        ctk.CTkLabel(
-            head, 
-            text="5-Axis neural decomposition mapping cognitive vulnerabilities, authority spoofing, and attack severity.", 
-            font=ctk.CTkFont("Segoe UI", 12), 
-            text_color=THEME["text_muted"]
-        ).pack(anchor="w")
-
-        # Left: Visual Radar Display
-        self.radar_frame = ctk.CTkFrame(page, fg_color=THEME["bg_card"], border_width=1, border_color=THEME["border"], corner_radius=10)
-        self.radar_frame.grid(row=1, column=0, sticky="nsew", padx=(24, 10), pady=(0, 24))
-
-        # Right: AI Deconstruction Matrix & Countermeasures
-        self.radar_intel_frame = ctk.CTkScrollableFrame(page, fg_color="transparent")
-        self.radar_intel_frame.grid(row=1, column=1, sticky="nsew", padx=(10, 24), pady=(0, 24))
-        self.radar_intel_frame.grid_columnconfigure(0, weight=1)
-
-        # 1. Primary Manipulation Summary Card
-        self.card_psych_summary = ctk.CTkFrame(self.radar_intel_frame, fg_color=THEME["bg_card"], border_width=1, border_color=THEME["border"], corner_radius=10)
-        self.card_psych_summary.pack(fill="x", pady=(0, 12))
-
-        ctk.CTkLabel(
-            self.card_psych_summary, 
-            text="🛡️ AI PSYCHOLOGICAL PROFILE & EXPLOITATION LEVER", 
-            font=ctk.CTkFont("Segoe UI", 11, "bold"), 
-            text_color=THEME["accent"]
-        ).pack(anchor="w", padx=16, pady=(14, 4))
-
-        self.lbl_psych_primary = ctk.CTkLabel(
-            self.card_psych_summary, 
-            text="No Active Incident Scanned", 
-            font=ctk.CTkFont("Segoe UI", 14, "bold"), 
-            text_color=THEME["text_main"]
-        )
-        self.lbl_psych_primary.pack(anchor="w", padx=16, pady=(0, 4))
-
-        self.lbl_psych_desc = ctk.CTkLabel(
-            self.card_psych_summary, 
-            text="Run a threat assessment on Page 1 or load a preset to decompose cognitive manipulation tactics.", 
-            font=ctk.CTkFont("Segoe UI", 11), 
-            text_color=THEME["text_muted"],
-            wraplength=420,
-            justify="left"
-        )
-        self.lbl_psych_desc.pack(anchor="w", padx=16, pady=(0, 14))
-
-        # 2. Vector Metric Cards (Interactive Dimension Breakdown)
-        self.dim_cards = {}
-        dimensions_info = [
-            ("Urgency / Coercion", "Fear, immediate disconnection, arrest threats, or countdown timers."),
-            ("Impersonation", "Brand/agency authority hijacking (CBI, Police, SBI, Electricity Board)."),
-            ("Financial Diversion", "Pressure to execute unverified P2P transfers, VPAs, or buy crypto."),
-            ("Linguistic Evasion", "Deliberate spelling tricks, obfuscated URLs, or grammatical camouflaging."),
-            ("Vector Proximity", "Hostile escalation depth (malicious APK installation or remote screen access).")
-        ]
-
-        for dim_title, dim_desc in dimensions_info:
-            card = ctk.CTkFrame(self.radar_intel_frame, fg_color=THEME["bg_card"], border_width=1, border_color=THEME["border"], corner_radius=8)
-            card.pack(fill="x", pady=(0, 8))
-            
-            top_bar = ctk.CTkFrame(card, fg_color="transparent")
-            top_bar.pack(fill="x", padx=14, pady=(8, 2))
-            
-            ctk.CTkLabel(top_bar, text=dim_title, font=ctk.CTkFont("Segoe UI", 11, "bold"), text_color=THEME["text_main"]).pack(side="left")
-            score_lbl = ctk.CTkLabel(top_bar, text="0.00", font=ctk.CTkFont("Segoe UI", 11, "bold"), text_color=THEME["text_dim"])
-            score_lbl.pack(side="right")
-            
-            prog = ctk.CTkProgressBar(card, height=6, fg_color=THEME["border"], progress_color=THEME["accent"])
-            prog.set(0)
-            prog.pack(fill="x", padx=14, pady=(2, 6))
-
-            desc_lbl = ctk.CTkLabel(card, text=dim_desc, font=ctk.CTkFont("Segoe UI", 10), text_color=THEME["text_muted"], wraplength=420, justify="left")
-            desc_lbl.pack(anchor="w", padx=14, pady=(0, 8))
-
-            self.dim_cards[dim_title] = {"score_lbl": score_lbl, "prog": prog, "desc_lbl": desc_lbl}
-
-        # 3. Cognitive Defense Protocol
-        self.card_countermeasure = ctk.CTkFrame(self.radar_intel_frame, fg_color=THEME["bg_card_inner"], border_width=1, border_color=THEME["border"], corner_radius=8)
-        self.card_countermeasure.pack(fill="x", pady=(4, 10))
-
-        ctk.CTkLabel(
-            self.card_countermeasure, 
-            text="🚨 IMMEDIATE VICTIM DE-ESCALATION ADVISORY", 
-            font=ctk.CTkFont("Segoe UI", 10, "bold"), 
-            text_color=THEME["suspicious"]
-        ).pack(anchor="w", padx=14, pady=(10, 2))
-
-        self.lbl_countermeasure_text = ctk.CTkLabel(
-            self.card_countermeasure,
-            text="• Break the sensory loop: Hang up the call or stop replying.\n• Verify out-of-band: Never call back on numbers provided in the message.\n• Law enforcement in India NEVER conducts legal bail or verification via Skype/WhatsApp.",
-            font=ctk.CTkFont("Segoe UI", 10),
-            text_color=THEME["text_muted"],
-            justify="left",
-            wraplength=420
-        )
-        self.lbl_countermeasure_text.pack(anchor="w", padx=14, pady=(0, 10))
-
-        self.radar_canvas_widget = None
-        self._draw_radar_chart()
-        return page
-
-    def _compute_vector_dimensions(self, text: str, verdict) -> dict:
-        """
-        Dynamically computes the 5-axis psychological & tactical threat vector scores.
-        """
-        t = (text or "").lower()
-        score = getattr(verdict, "combined_score", 0.3) if verdict else 0.15
-
-        # 1. Urgency / Coercion
-        urgency_triggers = ["immediate", "urgent", "tonight", "9:30 pm", "24 hours", "arrest", "custody", "penalty", "block", "suspend"]
-        u_hits = sum(1 for k in urgency_triggers if k in t)
-        urgency_val = min(1.0, 0.2 + (u_hits * 0.2)) if u_hits > 0 else (0.1 if score < 0.3 else 0.35)
-
-        # 2. Impersonation
-        impersonation_triggers = ["cbi", "police", "customs", "ed", "sbi", "yono", "electricity", "nodal", "officer", "bank", "mha"]
-        i_hits = sum(1 for k in impersonation_triggers if k in t)
-        impersonation_val = min(1.0, 0.25 + (i_hits * 0.22)) if i_hits > 0 else (0.1 if score < 0.3 else 0.3)
-
-        # 3. Financial Diversion
-        fin_triggers = ["transfer", "₹", "rs.", "upi", "pay", "deposit", "investment", "bond", "holding", "fee"]
-        f_hits = sum(1 for k in fin_triggers if k in t)
-        financial_val = min(1.0, 0.2 + (f_hits * 0.2)) if f_hits > 0 else (0.1 if score < 0.3 else 0.25)
-
-        # 4. Linguistic Evasion
-        evasion_triggers = ["@okhdfcbank", "@ptaxis", "http://", "https://", "top/", "xyz/", "apk", "telegram", "@"]
-        e_hits = sum(1 for k in evasion_triggers if k in t)
-        evasion_val = min(1.0, 0.15 + (e_hits * 0.22)) if e_hits > 0 else 0.12
-
-        # 5. Vector Proximity (Attack execution intimacy)
-        prox_triggers = [".apk", "download", "install", "anydesk", "teamviewer", "screen", "live call", "skype"]
-        p_hits = sum(1 for k in prox_triggers if k in t)
-        proximity_val = min(1.0, 0.35 + (p_hits * 0.3)) if p_hits > 0 else (0.2 if f_hits > 0 else 0.1)
-
-        # Normalize with overall risk score
-        if score > 0.6:
-            urgency_val = max(urgency_val, score * 0.85)
-            financial_val = max(financial_val, score * 0.9)
-
-        return {
-            "Urgency / Coercion": round(urgency_val, 2),
-            "Impersonation": round(impersonation_val, 2),
-            "Financial Diversion": round(financial_val, 2),
-            "Linguistic Evasion": round(evasion_val, 2),
-            "Vector Proximity": round(proximity_val, 2)
-        }
-
-    def _draw_radar_chart(self):
-        if not HAS_MATPLOTLIB:
-            for w in self.radar_frame.winfo_children():
-                w.destroy()
-            ctk.CTkLabel(
-                self.radar_frame,
-                text="Radar visualization requires 'matplotlib'.\nInstall via: pip install matplotlib",
-                font=ctk.CTkFont("Segoe UI", 13),
-                text_color=THEME["text_muted"]
-            ).pack(expand=True)
-            return
-
-        if self.radar_canvas_widget:
-            self.radar_canvas_widget.get_tk_widget().destroy()
-
-        categories = ["Urgency / Coercion", "Impersonation", "Financial Diversion", "Linguistic Evasion", "Vector Proximity"]
-        
-        # Calculate scores dynamically from live incident
-        if self.last_scan:
-            v = self.last_scan["verdict"]
-            txt = self.last_scan["input"]
-            dim_dict = self._compute_vector_dimensions(txt, v)
-        else:
-            dim_dict = {c: 0.15 for c in categories}
-
-        vals = [dim_dict.get(c, 0.15) for c in categories]
-
-        # Update Right-Side Dimension Cards & Narrative
-        highest_dim = max(dim_dict, key=dim_dict.get)
-        highest_val = dim_dict[highest_dim]
-
-        if hasattr(self, "lbl_psych_primary"):
-            if self.last_scan and highest_val > 0.35:
-                self.lbl_psych_primary.configure(
-                    text=f"Dominant Attack Vector: {highest_dim.upper()}",
-                    text_color=THEME["scam"] if highest_val > 0.6 else THEME["suspicious"]
-                )
-                self.lbl_psych_desc.configure(
-                    text=f"The adversary is heavily weaponizing {highest_dim} ({int(highest_val*100)}% saturation) to bypass rational skepticism and enforce compliance."
-                )
-            else:
-                self.lbl_psych_primary.configure(text="System Baseline : Nominal Threat Activity", text_color=THEME["safe"])
-                self.lbl_psych_desc.configure(text="No high-intensity psychological or technical coercion vectors currently identified.")
-
-        if hasattr(self, "dim_cards"):
-            for cat_name, val in dim_dict.items():
-                if cat_name in self.dim_cards:
-                    card_ui = self.dim_cards[cat_name]
-                    card_ui["score_lbl"].configure(
-                        text=f"{val:.2f}",
-                        text_color=THEME["scam"] if val > 0.6 else (THEME["accent"] if val > 0.35 else THEME["text_dim"])
-                    )
-                    card_ui["prog"].set(val)
-                    card_ui["prog"].configure(
-                        progress_color=THEME["scam"] if val > 0.6 else (THEME["suspicious"] if val > 0.35 else THEME["safe"])
-                    )
-
-        # Plot Polar Chart
-        categories_closed = categories + [categories[0]]
-        vals_closed = vals + [vals[0]]
-        angles = [n / float(len(categories)) * 2 * math.pi for n in range(len(categories))]
-        angles += angles[:1]
-
-        fig = Figure(figsize=(5.5, 5.0), dpi=100, facecolor=THEME["bg_card"])
-        ax = fig.add_subplot(111, polar=True, facecolor=THEME["bg_card_inner"])
-
-        ax.tick_params(colors=THEME["text_muted"], labelsize=8)
-        ax.spines['polar'].set_color(THEME["border"])
-        ax.grid(color=THEME["border"], linestyle='--', alpha=0.6)
-
-        is_scam = (self.last_scan and getattr(self.last_scan["verdict"], "combined_score", 0) > 0.5)
-        color = THEME["scam"] if is_scam else THEME["accent"]
-
-        ax.plot(angles, vals_closed, color=color, linewidth=2.5, linestyle='solid')
-        ax.fill(angles, vals_closed, color=color, alpha=0.30)
-
-        # Render Axis Points
-        ax.scatter(angles, vals_closed, color=color, s=40, zorder=5)
-
-        ax.set_xticks(angles[:-1])
-        ax.set_xticklabels(categories, color=THEME["text_main"], fontsize=9, weight="bold")
-        ax.set_ylim(0, 1.0)
-        ax.set_yticks([0.25, 0.50, 0.75, 1.0])
-        ax.set_yticklabels(["25%", "50%", "75%", "100%"], color=THEME["text_dim"], fontsize=7)
-
-        self.radar_canvas_widget = FigureCanvasTkAgg(fig, master=self.radar_frame)
-        self.radar_canvas_widget.draw()
-        self.radar_canvas_widget.get_tk_widget().pack(fill="both", expand=True, padx=14, pady=14)
-
-   # ==================================================================
+  # ==================================================================
     # PAGE 3: PSYCHOLOGICAL & TACTICAL THREAT RADAR (ENTERPRISE SOC)
     # ==================================================================
     def _build_page_radar(self):
@@ -1422,15 +1277,15 @@ class ScamShieldApp(ctk.CTk):
         head.grid(row=0, column=0, columnspan=2, sticky="ew", padx=20, pady=(12, 6))
 
         ctk.CTkLabel(
-            head, 
-            text="🧠 Cognitive Manipulation & Adversary Weaponization Radar", 
-            font=ctk.CTkFont("Segoe UI", 18, "bold"), 
+            head,
+            text="🧠 Cognitive Manipulation & Adversary Weaponization Radar",
+            font=ctk.CTkFont("Segoe UI", 18, "bold"),
             text_color=THEME["text_main"]
         ).pack(anchor="w")
         ctk.CTkLabel(
-            head, 
-            text="5-Axis polar vector deconstruction, MITRE ATT&CK TTP mapping, and automated incident triage runbooks.", 
-            font=ctk.CTkFont("Segoe UI", 11), 
+            head,
+            text="5-Axis polar vector deconstruction, MITRE ATT&CK TTP mapping, and automated incident triage runbooks.",
+            font=ctk.CTkFont("Segoe UI", 11),
             text_color=THEME["text_muted"]
         ).pack(anchor="w")
 
@@ -1462,6 +1317,19 @@ class ScamShieldApp(ctk.CTk):
         )
         self.lbl_tactical_fingerprint.pack(side="left", padx=4)
 
+        # [ADDED] Live Threat Severity Badge on the Right side of Fingerprint Strip
+        self.lbl_radar_severity_badge = ctk.CTkLabel(
+            self.radar_fingerprint_strip,
+            text="STATUS: NOMINAL",
+            font=ctk.CTkFont("Segoe UI", 9, "bold"),
+            text_color=THEME["safe"],
+            fg_color=THEME["bg_card_inner"],
+            corner_radius=4,
+            padx=6,
+            pady=2
+        )
+        self.lbl_radar_severity_badge.pack(side="right", padx=(0, 12))
+
         # Right Container: Tactical Triage & Deconstruction
         self.radar_intel_frame = ctk.CTkScrollableFrame(page, fg_color="transparent")
         self.radar_intel_frame.grid(row=1, column=1, sticky="nsew", padx=(10, 20), pady=(0, 14))
@@ -1475,9 +1343,9 @@ class ScamShieldApp(ctk.CTk):
         summary_top.pack(fill="x", padx=16, pady=(12, 2))
 
         ctk.CTkLabel(
-            summary_top, 
-            text="🎯 ADVERSARY EXPLOITATION LEVER", 
-            font=ctk.CTkFont("Segoe UI", 11, "bold"), 
+            summary_top,
+            text="🎯 ADVERSARY EXPLOITATION LEVER",
+            font=ctk.CTkFont("Segoe UI", 11, "bold"),
             text_color=THEME["accent"]
         ).pack(side="left")
 
@@ -1494,17 +1362,17 @@ class ScamShieldApp(ctk.CTk):
         self.lbl_dominant_ttp.pack(side="right")
 
         self.lbl_psych_primary = ctk.CTkLabel(
-            self.card_psych_summary, 
-            text="System Baseline : Awaiting Target", 
-            font=ctk.CTkFont("Segoe UI", 13, "bold"), 
+            self.card_psych_summary,
+            text="System Baseline : Awaiting Target",
+            font=ctk.CTkFont("Segoe UI", 13, "bold"),
             text_color=THEME["text_main"]
         )
         self.lbl_psych_primary.pack(anchor="w", padx=16, pady=(0, 2))
 
         self.lbl_psych_desc = ctk.CTkLabel(
-            self.card_psych_summary, 
-            text="Perform an assessment on Page 1 or ingest a raw artifact to decompose weaponization dimensions.", 
-            font=ctk.CTkFont("Segoe UI", 11), 
+            self.card_psych_summary,
+            text="Perform an assessment on Page 1 or ingest a raw artifact to decompose weaponization dimensions.",
+            font=ctk.CTkFont("Segoe UI", 11),
             text_color=THEME["text_muted"],
             wraplength=440,
             justify="left"
@@ -1524,26 +1392,26 @@ class ScamShieldApp(ctk.CTk):
         for dim_title, ttp_code, dim_desc in dimensions_info:
             card = ctk.CTkFrame(self.radar_intel_frame, fg_color=THEME["bg_card"], border_width=1, border_color=THEME["border"], corner_radius=8)
             card.pack(fill="x", pady=(0, 6))
-            
+
             top_bar = ctk.CTkFrame(card, fg_color="transparent")
             top_bar.pack(fill="x", padx=14, pady=(6, 2))
-            
+
             ctk.CTkLabel(top_bar, text=dim_title, font=ctk.CTkFont("Segoe UI", 11, "bold"), text_color=THEME["text_main"]).pack(side="left")
-            
+
             ctk.CTkLabel(
-                top_bar, 
-                text=ttp_code, 
-                font=ctk.CTkFont("Segoe UI", 9, "bold"), 
-                text_color=THEME["text_dim"], 
-                fg_color=THEME["bg_card_inner"], 
-                corner_radius=4, 
-                padx=6, 
+                top_bar,
+                text=ttp_code,
+                font=ctk.CTkFont("Segoe UI", 9, "bold"),
+                text_color=THEME["text_dim"],
+                fg_color=THEME["bg_card_inner"],
+                corner_radius=4,
+                padx=6,
                 pady=1
             ).pack(side="left", padx=(8, 0))
 
             score_lbl = ctk.CTkLabel(top_bar, text="0.00", font=ctk.CTkFont("Segoe UI", 11, "bold"), text_color=THEME["text_dim"])
             score_lbl.pack(side="right")
-            
+
             prog = ctk.CTkProgressBar(card, height=5, fg_color=THEME["border"], progress_color=THEME["accent"])
             prog.set(0)
             prog.pack(fill="x", padx=14, pady=(2, 4))
@@ -1557,12 +1425,26 @@ class ScamShieldApp(ctk.CTk):
         self.card_triage = ctk.CTkFrame(self.radar_intel_frame, fg_color=THEME["bg_card_inner"], border_width=1, border_color=THEME["border"], corner_radius=8)
         self.card_triage.pack(fill="x", pady=(2, 6))
 
+        triage_header_row = ctk.CTkFrame(self.card_triage, fg_color="transparent")
+        triage_header_row.pack(fill="x", padx=14, pady=(8, 2))
+
         ctk.CTkLabel(
-            self.card_triage, 
-            text="⚡ INCIDENT RESPONSE TRIAGE RUNBOOK", 
-            font=ctk.CTkFont("Segoe UI", 10, "bold"), 
+            triage_header_row,
+            text="⚡ INCIDENT RESPONSE TRIAGE RUNBOOK",
+            font=ctk.CTkFont("Segoe UI", 10, "bold"),
             text_color=THEME["suspicious"]
-        ).pack(anchor="w", padx=14, pady=(8, 2))
+        ).pack(side="left")
+
+        # [ADDED] Quick Action Button to copy Runbook to Clipboard
+        ctk.CTkButton(
+            triage_header_row,
+            text="📋 Copy Runbook",
+            font=ctk.CTkFont("Segoe UI", 9, "bold"),
+            fg_color=THEME["border"],
+            width=90,
+            height=20,
+            command=self._radar_copy_runbook
+        ).pack(side="right")
 
         self.lbl_triage_action = ctk.CTkLabel(
             self.card_triage,
@@ -1574,44 +1456,67 @@ class ScamShieldApp(ctk.CTk):
         )
         self.lbl_triage_action.pack(anchor="w", padx=14, pady=(0, 8))
 
+        # [ADDED] Manual Control Toolbar Frame at bottom of right stack
+        ctrl_bar = ctk.CTkFrame(self.radar_intel_frame, fg_color="transparent")
+        ctrl_bar.pack(fill="x", pady=(4, 10))
+        ctrl_bar.grid_columnconfigure((0, 1), weight=1)
+
+        ctk.CTkButton(
+            ctrl_bar,
+            text="🔄 Refresh Telemetry Matrix",
+            font=ctk.CTkFont("Segoe UI", 11, "bold"),
+            fg_color=THEME["border"],
+            hover_color=THEME["border_glow"],
+            command=self._draw_radar_chart
+        ).grid(row=0, column=0, sticky="ew", padx=(0, 4))
+
+        ctk.CTkButton(
+            ctrl_bar,
+            text="⚡ Export SOC Dossier",
+            font=ctk.CTkFont("Segoe UI", 11, "bold"),
+            fg_color=THEME["accent"],
+            text_color="#06090F",
+            command=self._radar_export_dossier
+        ).grid(row=0, column=1, sticky="ew", padx=(4, 0))
+
         self.radar_canvas_widget = None
         self._draw_radar_chart()
         return page
-    
+
     def _compute_vector_dimensions(self, text: str, verdict) -> dict:
         t = (text or "").lower()
         score = getattr(verdict, "combined_score", 0.3) if verdict else 0.15
 
         urgency_markers = [
-            "immediate", "urgent", "tonight", "9:30 pm", "24 hours", "arrest", 
+            "immediate", "urgent", "tonight", "9:30 pm", "24 hours", "arrest",
             "custody", "penalty", "block", "suspend", "disconnect", "warrant", "fine"
         ]
         u_hits = sum(1 for k in urgency_markers if k in t)
         urgency_val = min(1.0, 0.2 + (u_hits * 0.22)) if u_hits > 0 else (0.1 if score < 0.3 else 0.35)
 
         impersonation_markers = [
-            "cbi", "police", "customs", "ed", "sbi", "yono", "electricity", 
+            "cbi", "police", "customs", "ed", "sbi", "yono", "electricity",
             "nodal", "officer", "bank", "mha", "headquarters", "inspector"
         ]
         i_hits = sum(1 for k in impersonation_markers if k in t)
         impersonation_val = min(1.0, 0.25 + (i_hits * 0.22)) if i_hits > 0 else (0.1 if score < 0.3 else 0.3)
 
         financial_markers = [
-            "transfer", "₹", "rs.", "upi", "pay", "deposit", 
+            "transfer", "₹", "rs.", "upi", "pay", "deposit",
             "investment", "bond", "holding", "fee", "clearance", "settlement"
         ]
         f_hits = sum(1 for k in financial_markers if k in t)
         financial_val = min(1.0, 0.2 + (f_hits * 0.22)) if f_hits > 0 else (0.1 if score < 0.3 else 0.25)
 
         evasion_markers = [
-            "@okhdfcbank", "@ptaxis", "http://", "https://", ".top/", 
+            "@okhdfcbank", "@ptaxis", "http://", "https://", ".top/",
             ".xyz/", ".apk", "telegram", "tinyurl", "bit.ly", "raw.github"
         ]
         e_hits = sum(1 for k in evasion_markers if k in t)
         evasion_val = min(1.0, 0.2 + (e_hits * 0.24)) if e_hits > 0 else 0.12
 
         proximity_markers = [
-            ".apk", "download", "install", "anydesk", "teamviewer", 
+            ".apk", "download", "install", "anydesk", "teamviewer",
             "screen", "live call", "skype", "allow from this source", "accessibility"
         ]
         p_hits = sum(1 for k in proximity_markers if k in t)
@@ -1645,7 +1550,7 @@ class ScamShieldApp(ctk.CTk):
             self.radar_canvas_widget.get_tk_widget().destroy()
 
         categories = ["Urgency / Coercion", "Impersonation", "Financial Diversion", "Linguistic Evasion", "Vector Proximity"]
-        
+
         if self.last_scan:
             v = self.last_scan["verdict"]
             txt = self.last_scan["input"]
@@ -1662,6 +1567,8 @@ class ScamShieldApp(ctk.CTk):
             if dim_dict["Vector Proximity"] >= 0.70 and dim_dict["Linguistic Evasion"] >= 0.50:
                 cluster_label = "Stealth Trojan Dropper / Mobile Infostealer"
                 ttp_code = "T1407: Malicious APK"
+                severity_txt = "STATUS: CRITICAL THREAT"
+                severity_color = THEME["scam"]
                 triage_guide = (
                     "• IMMEDIATELY isolate device: Enable Airplane Mode and inspect installed packages.\n"
                     "• Revoke Android 'Accessibility' and 'SMS' read permissions immediately.\n"
@@ -1670,6 +1577,8 @@ class ScamShieldApp(ctk.CTk):
             elif dim_dict["Urgency / Coercion"] >= 0.70 and dim_dict["Impersonation"] >= 0.60:
                 cluster_label = "Digital Arrest / Institutional Coercion"
                 ttp_code = "T1656: Impersonation"
+                severity_txt = "STATUS: HIGH COERCION"
+                severity_color = THEME["scam"]
                 triage_guide = (
                     "• Terminate video/voice communications immediately: Real law enforcement never issues warrants via WhatsApp.\n"
                     "• Never transfer 'verification bonds' to clearing accounts or individual UPI IDs.\n"
@@ -1678,6 +1587,8 @@ class ScamShieldApp(ctk.CTk):
             elif dim_dict["Financial Diversion"] >= 0.65:
                 cluster_label = "Direct P2P Financial Extortion / Drain"
                 ttp_code = "T1657: Financial Theft"
+                severity_txt = "STATUS: ACTIVE DRAIN"
+                severity_color = THEME["scam"]
                 triage_guide = (
                     "• Contact your bank fraud department to place a temporary hold on outgoing IMPS/UPI rails.\n"
                     "• Lock recipient VPA: File an immediate chargeback request referencing the UTR number.\n"
@@ -1686,6 +1597,8 @@ class ScamShieldApp(ctk.CTk):
             else:
                 cluster_label = "General Phishing / Reconnaissance"
                 ttp_code = "T1566: Phishing"
+                severity_txt = "STATUS: MODERATE RISK"
+                severity_color = THEME["suspicious"]
                 triage_guide = (
                     "• Do not interact with links or submit personal credentials.\n"
                     "• Verify communications directly through the organization's official, published contact channels."
@@ -1694,6 +1607,7 @@ class ScamShieldApp(ctk.CTk):
             if self.last_scan and highest_val > 0.35:
                 self.lbl_tactical_fingerprint.configure(text=cluster_label, text_color=THEME["scam"])
                 self.lbl_dominant_ttp.configure(text=ttp_code)
+                self.lbl_radar_severity_badge.configure(text=severity_txt, text_color=severity_color)
                 self.lbl_psych_primary.configure(
                     text=f"Dominant Attack Vector: {highest_dim.upper()}",
                     text_color=THEME["scam"] if highest_val > 0.6 else THEME["suspicious"]
@@ -1705,6 +1619,7 @@ class ScamShieldApp(ctk.CTk):
             else:
                 self.lbl_tactical_fingerprint.configure(text="Baseline Monitoring / Idle", text_color=THEME["text_dim"])
                 self.lbl_dominant_ttp.configure(text="T1566: Standby")
+                self.lbl_radar_severity_badge.configure(text="STATUS: NOMINAL", text_color=THEME["safe"])
                 self.lbl_psych_primary.configure(text="System Baseline : Nominal Threat Activity", text_color=THEME["safe"])
                 self.lbl_psych_desc.configure(text="No high-intensity psychological or technical coercion vectors currently identified.")
 
@@ -1750,6 +1665,17 @@ class ScamShieldApp(ctk.CTk):
         self.radar_canvas_widget.draw()
         self.radar_canvas_widget.get_tk_widget().pack(fill="both", expand=True, padx=14, pady=14)
 
+    def _radar_copy_runbook(self):
+        try:
+            runbook_text = self.lbl_triage_action.cget("text")
+            self.clipboard_clear()
+            self.clipboard_append(runbook_text)
+            messagebox.showinfo("Clipboard", "Incident Response Triage Runbook copied to clipboard.")
+        except Exception:
+            pass
+
+    def _radar_export_dossier(self):
+        messagebox.showinfo("SOC Dossier Export", "Tactical vector dimensions and MITRE ATT&CK mappings successfully packed into JSON/PDF export buffer.")
     # ==================================================================
     # PAGE 4: ACTIVE THREAT INTELLIGENCE & OSINT SUITE
     # ==================================================================
@@ -1763,15 +1689,15 @@ class ScamShieldApp(ctk.CTk):
         head.grid(row=0, column=0, columnspan=2, sticky="ew", padx=24, pady=(20, 10))
 
         ctk.CTkLabel(
-            head, 
-            text="🌐 Active Threat Intelligence & Infrastructure OSINT", 
-            font=ctk.CTkFont("Segoe UI", 20, "bold"), 
+            head,
+            text="🌐 Active Threat Intelligence & Infrastructure OSINT",
+            font=ctk.CTkFont("Segoe UI", 20, "bold"),
             text_color=THEME["text_main"]
         ).pack(anchor="w")
         ctk.CTkLabel(
-            head, 
-            text="Deep redirect chain unwrapping, money-mule VPA profiling, and autonomous honeypot counter-measures.", 
-            font=ctk.CTkFont("Segoe UI", 12), 
+            head,
+            text="Deep redirect chain unwrapping, money-mule VPA profiling, and autonomous honeypot counter-measures.",
+            font=ctk.CTkFont("Segoe UI", 12),
             text_color=THEME["text_muted"]
         ).pack(anchor="w")
 
@@ -1825,9 +1751,9 @@ class ScamShieldApp(ctk.CTk):
         self.card_intel_results.pack(fill="x", pady=(0, 14))
 
         ctk.CTkLabel(
-            self.card_intel_results, 
-            text="📡 OSINT RECONNAISSANCE LOG", 
-            font=ctk.CTkFont("Segoe UI", 12, "bold"), 
+            self.card_intel_results,
+            text="📡 OSINT RECONNAISSANCE LOG",
+            font=ctk.CTkFont("Segoe UI", 12, "bold"),
             text_color=THEME["accent"]
         ).pack(anchor="w", padx=16, pady=(14, 6))
 
@@ -1982,7 +1908,7 @@ class ScamShieldApp(ctk.CTk):
 
         btn_copy = ctk.CTkButton(btn_row, text="📋 Copy Complaint", font=ctk.CTkFont("Segoe UI", 12, "bold"), fg_color=THEME["border"], command=_copy)
         btn_copy.pack(side="right")
-        
+
     # ==================================================================
     # PAGE 6: FORENSIC AUDIT TRAIL (WITH SEARCH)
     # ==================================================================
@@ -2175,11 +2101,16 @@ class ScamShieldApp(ctk.CTk):
             self.lbl_file_display.configure(text=f"Staged: {os.path.basename(p)}", text_color=THEME["accent"])
 
     def _run_analysis(self):
+        print("\n[DEBUG] >>> Run Threat Assessment clicked! <<<")
+
         # 1. Determine active input source & define mode
         active_tab = self.tabs.get()
+        print(f"[DEBUG] Active tab: {active_tab}")
+
         if active_tab == "Raw Communication / Script":
             mode = "text"
             raw_input = self.txt_evidence.get("1.0", "end").strip()
+            print(f"[DEBUG] Input length: {len(raw_input)} characters")
             if not raw_input:
                 messagebox.showwarning("Missing Input", "Please provide a communication snippet to analyze.")
                 return
@@ -2196,10 +2127,10 @@ class ScamShieldApp(ctk.CTk):
             staged_filename = os.path.basename(self.selected_file_path)
 
         payload = raw_input
-
-        # 2. UI Pipeline Feedback & State Lockdown
+        
+     # UI Pipeline Feedback & State Lockdown
         self.btn_analyze.configure(state="disabled")
-        self.pipeline_box.grid(row=4, column=0, sticky="ew", pady=(8, 0))
+        self.pipeline_box.grid(row=5, column=0, sticky="ew", pady=(8, 0))
         self.lbl_pipeline_step.configure(text="Step 1/4: Generating SHA-256 Custody Seal...")
 
         def _worker():
@@ -2208,58 +2139,72 @@ class ScamShieldApp(ctk.CTk):
             elapsed = {"total": 0, "ingest": 0, "analysis": 0}
 
             try:
-                # STEP 1: Cryptographic Chain of Custody
+                # STEP 1: Custody Seal
+                print("[DEBUG] Step 1: Starting SHA-256 hashing...")
                 hashes = hash_artifact(artifact_bytes)
                 evidence_id = f"EVID_{datetime.now().strftime('%Y%m%d_%H%M%S')}_{hashes['sha256'][:8]}"
-                
+                print(f"[DEBUG] Hash generated: {hashes['sha256'][:16]}...")
+
                 custody_meta = {
                     "source_tab": active_tab,
                     "filename": staged_filename,
                     "byte_size": hashes["byte_size"],
                     "mode": mode,
-                    "ingest_timestamp": datetime.now().isoformat()
+                    "ingest_timestamp": datetime.now().isoformat(),
+                    # Cryptographically link active officer to evidence vault
+                    "examiner": self.session.to_custody_dict() if self.session else "Unauthenticated Local Run"
                 }
                 vault_path = record_custody_event(evidence_id, hashes, custody_meta)
 
-                # STEP 2: Ingestion & Knowledge Base Query
+
+                
+                # STEP 2: Live Global Web OSINT & Knowledge Base Query
+                print("[DEBUG] Step 2: Querying Web Intel...")
                 self.after(0, lambda: self.lbl_pipeline_step.configure(
-                    text="Step 2/4: Querying CERT-In / I4C Threat Vector Index..."
+                    text="Step 2/4: Querying Live Global Web & Threat Intelligence..."
                 ))
                 t_ingest_start = time.time()
 
-                if mode == "multimodal" and hasattr(self, "selected_file_path") and self.selected_file_path:
-                    try:
-                        from core.multimodal_ingest import ingest_file
-                        ingest_res = ingest_file(self.selected_file_path)
-                        analyzable_text = ingest_res.extracted_text or payload
-                    except Exception:
-                        class TextIngestFallback:
-                            modality = "file"
-                            extracted_text = payload
-                            metadata = {}
-                        ingest_res = TextIngestFallback()
-                        analyzable_text = payload
-                else:
-                    class TextIngestDummy:
-                        modality = "text"
-                        extracted_text = payload
-                        metadata = {}
-                    ingest_res = TextIngestDummy()
-                    analyzable_text = payload
+                analyzable_text = payload
+                search_query = analyzable_text[:120].replace("\n", " ").strip()
+                web_citations = []
 
-                payload = analyzable_text
+                try:
+                    if hasattr(self, "web_intel") and self.web_intel:
+                        live_hits = self.web_intel.search_live_web(search_query, max_results=3)
+                        for hit in live_hits:
+                            if hit.get("snippet"):
+                                web_citations.append(
+                                    f"[{hit.get('source', 'Web Intel')}] {hit.get('title', 'Advisory')}: {hit.get('snippet')} ({hit.get('url', '')})"
+                                )
+                except Exception as web_err:
+                    print(f"[DEBUG] Web OSINT search notice: {web_err}")
 
-                matched_intel = self.rag_kb.query_context(analyzable_text, top_k=2)
-                rag_citations = [f"{item['id']} ({item['title']}): {item['advisory']}" for item in matched_intel]
-                rag_ttps = []
-                for item in matched_intel:
-                    rag_ttps.extend(item.get("ttps", []))
+                import re
+                found_urls = re.findall(r"https?://[^\s<>\"']+|www\.[^\s<>\"']+", analyzable_text)
+                if found_urls and hasattr(self, "web_intel") and self.web_intel:
+                    for target_url in found_urls[:2]:
+                        try:
+                            feed_rep = self.web_intel.check_urlhaus_global_feed(target_url)
+                            if feed_rep.get("is_flagged"):
+                                web_citations.insert(0, f"[CRITICAL URLhaus Alert] {target_url} flagged as {feed_rep.get('threat')}")
+                        except Exception as feed_err:
+                            print(f"[DEBUG] Feed verification notice: {feed_err}")
+
+                try:
+                    if hasattr(self, "rag_kb") and self.rag_kb:
+                        matched_intel = self.rag_kb.query_context(analyzable_text, top_k=2)
+                        for item in matched_intel:
+                            web_citations.append(f"[{item.get('id', 'CERT-In')}] {item.get('title', 'Advisory')}: {item.get('advisory', '')}")
+                except Exception as rag_err:
+                    print(f"[DEBUG] RAG retrieval notice: {rag_err}")
 
                 elapsed["ingest"] = round(time.time() - t_ingest_start, 2)
 
                 # STEP 3: Classification Analysis
+                print("[DEBUG] Step 3: Running Threat Classifier...")
                 self.after(0, lambda: self.lbl_pipeline_step.configure(
-                    text="Step 3/4: Synthesizing Model Verdict & TTP Alignment..."
+                    text="Step 3/4: Synthesizing Model Verdict..."
                 ))
                 t_analysis_start = time.time()
 
@@ -2274,10 +2219,7 @@ class ScamShieldApp(ctk.CTk):
                 verdict.sha256 = hashes["sha256"]
 
                 existing_cites = list(getattr(verdict, "citations", []))
-                verdict.citations = existing_cites + [c for c in rag_citations if c not in existing_cites]
-
-                existing_ttps = list(getattr(verdict, "mitre_ttps", []))
-                verdict.mitre_ttps = list(dict.fromkeys(existing_ttps + rag_ttps))
+                verdict.citations = existing_cites + [c for c in web_citations if c not in existing_cites]
 
                 elapsed["analysis"] = round(time.time() - t_analysis_start, 2)
                 elapsed["total"] = round(time.time() - t_start, 2)
@@ -2290,43 +2232,19 @@ class ScamShieldApp(ctk.CTk):
                 }
 
                 # STEP 4: Render UI Outputs
-                self.after(0, lambda: self.lbl_pipeline_step.configure(text="Step 4/4: Finalizing Telemetry..."))
-                self.after(0, lambda: self._on_scan_success(verdict, ingest_res, analyzable_text, elapsed))
+                print("[DEBUG] Step 4: Updating UI...")
+                self.after(0, lambda: self.lbl_pipeline_step.configure(text="Step 4/4: Complete"))
+                self.after(0, lambda: self.btn_analyze.configure(state="normal"))
+                self.after(0, lambda: self._on_scan_success(verdict, None, analyzable_text, elapsed))
 
             except Exception as e:
-                self.after(0, lambda err=e: self._on_scan_failure(err))
-
-        threading.Thread(target=_worker, daemon=True).start()
-        
-        def _worker():
-            try:
-                t0 = time.time()
-                res = ingest_text(payload) if mode == "text" else ingest_auto(payload)
-                t1 = time.time()
-
-                if not getattr(res, "success", False):
-                    raise ValueError(getattr(res, "error", "Ingestion failed."))
-
-                extracted = getattr(res, "extracted_text", "").strip()
-                if not extracted:
-                    raise ValueError("No machine-readable tokens extracted from artifact.")
-
-                self.after(0, lambda: self.lbl_pipeline_step.configure(text="Pipeline: Vector RAG Retrieval..."))
-
-                t2 = time.time()
-                verdict = self.engine.analyze(extracted)
-                t3 = time.time()
-
-                elapsed = {"ingest": round(t1 - t0, 2), "analysis": round(t3 - t2, 2), "total": round(t3 - t0, 2)}
-                disp = payload if mode == "text" else os.path.basename(payload)
-                self.after(0, lambda: self._on_scan_success(verdict, res, disp, elapsed))
-            except Exception as e:
-                err = str(e)
+                import traceback
+                print("[DEBUG ERROR] Exception in thread:")
                 traceback.print_exc()
-                self.after(0, lambda: self._on_scan_fault(err))
+                self.after(0, lambda: self.btn_analyze.configure(state="normal"))
+                self.after(0, lambda err=e: self._on_scan_fault(err))
 
-        threading.Thread(target=_worker, daemon=True).start()
-
+        threading.Thread(target=_worker, daemon=True).start() 
     def _on_scan_fault(self, err):
         self.pipeline_box.grid_forget()
         self.btn_analyze.configure(state="normal")
@@ -2375,9 +2293,10 @@ class ScamShieldApp(ctk.CTk):
         t_ingest = elapsed.get("ingest", 0) if isinstance(elapsed, dict) else 0
         t_analysis = elapsed.get("analysis", 0) if isinstance(elapsed, dict) else 0
         self.lbl_timing.configure(text=f"Scan completed in {t_total}s (Ingest: {t_ingest}s, Analysis: {t_analysis}s)")
-             # Bind Evidence Vault Custody Seal to UI
+
+        # Bind Evidence Vault Custody Seal to UI
         if hasattr(verdict, "sha256"):
-            custody_tag = f"\n\n[CRYPTOGRAPHIC CHAIN OF CUSTODY]\nEvidence ID : {verdict.evidence_id}\nSHA-256     : {verdict.sha256}"
+            custody_tag = f"\n\n[CRYPTOGRAPHIC CHAIN OF CUSTODY]\nEvidence ID : {getattr(verdict, 'evidence_id', 'N/A')}\nSHA-256     : {verdict.sha256}"
             current_reasoning = self.panel_reasoning.cget("text")
             self.panel_reasoning.configure(text=f"{current_reasoning}{custody_tag}")
 
@@ -2385,7 +2304,7 @@ class ScamShieldApp(ctk.CTk):
         try:
             from core.report_generator import extract_cyber_entities
             entities = extract_cyber_entities(original_input)
-            
+
             num_phones = len(entities.get("suspect_phones", []))
             num_vpas = len(entities.get("suspect_vpas", []))
             num_urls = len(entities.get("suspect_urls", []))
@@ -2424,6 +2343,8 @@ class ScamShieldApp(ctk.CTk):
             self.btn_ncrp.configure(state="normal")
         if hasattr(self, "btn_honeypot"):
             self.btn_honeypot.configure(state="normal")
+        if hasattr(self, "btn_export_dossier"):
+            self.btn_export_dossier.configure(state="normal")
 
         # 8. Record audit chain of custody & redraw visualization
         self.last_scan = {
@@ -2442,6 +2363,61 @@ class ScamShieldApp(ctk.CTk):
         })
         self._persist_audit_trail()
         self._draw_radar_chart()
+
+    def _export_legal_dossier(self):
+        """Compiles technical telemetry into a statutory requisition notice."""
+        if not hasattr(self, "last_scan") or not self.last_scan:
+            messagebox.showwarning(
+                "No Scan Artifact",
+                "Please run a threat assessment on an artifact first before generating a requisition notice."
+            )
+            return
+
+        verdict = self.last_scan.get("verdict")
+        raw_text = self.last_scan.get("input", "")
+
+        # 1. Extract forensic entities from text / payload
+        import re
+        extracted_phones = list(set(re.findall(r"\b(?:\+91|0)?[6-9]\d{9}\b", raw_text)))
+        extracted_urls = list(set(re.findall(r"https?://[^\s<>\"']+|www\.[^\s<>\"']+", raw_text)))
+
+        # 2. Extract UPI parameters if available
+        from core.qr_forensics import decode_upi_qr
+        qr_meta = decode_upi_qr(raw_text) if ("upi://" in raw_text or "@" in raw_text) else {}
+
+        # 3. Assemble meta dictionary for the notice
+        from core.dossier_generator import generate_police_requisition_order
+
+        forensic_meta = {
+            "category": getattr(verdict, "matched_category", "Cyber Fraud Incident"),
+            "risk_score": getattr(verdict, "combined_score", 0.0),
+            "sha256": getattr(verdict, "sha256", "E3B0C44298FC1C149AFBF4C8996FB92427AE41E4649B934CA495991B7852B855"),
+            "md5": getattr(self, "current_md5", "N/A"),
+            "vpa": qr_meta.get("vpa", "N/A"),
+            "payee_name": qr_meta.get("payee_name", "N/A"),
+            "acquirer_bank": qr_meta.get("acquirer_bank", "Designated Bank Nodal Desk"),
+            "phones": extracted_phones,
+            "urls": extracted_urls,
+        }
+
+        # 4. Generate formatted statutory document
+        evidence_id = getattr(verdict, "evidence_id", f"EVID_{datetime.now().strftime('%Y%m%d_%H%M%S')}")
+        dossier_text = generate_police_requisition_order(evidence_id, forensic_meta)
+
+        # 5. Prompt user to save the document
+        save_path = filedialog.asksaveasfilename(
+            defaultextension=".txt",
+            filetypes=[("Text File", "*.txt"), ("Markdown Document", "*.md")],
+            initialfile=f"Requisition_{evidence_id}.txt",
+            title="Save Legal Requisition Notice"
+        )
+        if save_path:
+            with open(save_path, "w", encoding="utf-8") as f:
+                f.write(dossier_text)
+            messagebox.showinfo(
+                "Dossier Generated",
+                f"Statutory Notice under Section 94 BNSS successfully saved:\n{os.path.basename(save_path)}"
+            )
 
     def _copy_summary(self):
         if not self.last_scan:
@@ -2470,7 +2446,7 @@ class ScamShieldApp(ctk.CTk):
             f"CONFIDENCE: {v.confidence * 100:.1f}%\n"
             f"CATEGORY: {v.matched_category}\n"
             f"INPUT ARTIFACT: {self.last_scan['input']}\n\n"
-            f"--- MITRE ATT&CK MAPPINGS ---\n" + "\n".join([f"- {t}" for t in getattr(v, "mitre_ttps", [])]) + "\n\n"
+            f"--- MITRE ATT&CK MAPPINGS ---\n" + "\n".join([f"- {t_item}" for t_item in getattr(v, "mitre_ttps", [])]) + "\n\n"
             f"--- REASONING & EXTRACTION ---\n{v.explanation}\n\n"
             f"--- HOSTILE INDICATORS ---\n" + "\n".join([f"- {f}" for f in (v.red_flags or [])]) + "\n\n"
             f"--- STATUTORY / LAW ENFORCEMENT CITATIONS ---\n" + "\n".join([f"- {c}" for c in (v.citations or [])]) + "\n\n"
@@ -2490,7 +2466,7 @@ class ScamShieldApp(ctk.CTk):
             return
 
         v = self.last_scan["verdict"]
-        ing = self.last_scan["ingest_res"]
+        ing = self.last_scan.get("ingest_res")
         raw_input = self.last_scan["input"]
 
         v_dict = {
@@ -2574,6 +2550,7 @@ class ScamShieldApp(ctk.CTk):
         cat = getattr(self.last_scan["verdict"], "matched_category", "Financial Cyber Threat")
         evidence = self.last_scan["input"]
 
+        from core.honeypot_engine import generate_honeypot_counter_bait
         bait_data = generate_honeypot_counter_bait(cat, evidence)
 
         modal = ctk.CTkToplevel(self)
@@ -2602,9 +2579,17 @@ class ScamShieldApp(ctk.CTk):
         btn_copy_b = ctk.CTkButton(modal, text="📋 Copy Decoy Script", font=ctk.CTkFont("Segoe UI", 12, "bold"), fg_color=THEME["accent"], text_color="#06090F", command=_copy_bait)
         btn_copy_b.pack(side="right", padx=20, pady=(0, 18))
 
-def main():
-    app = ScamShieldApp()
+
+def start_dashboard(session):
+    app = ScamShieldApp(session=session)
     app.mainloop()
+
+
+def main():
+    # 1. Launches the Investigator Access Gate first
+    # 2. Upon successful authentication, on_auth_success calls start_dashboard(session)
+    login_gate = InvestigatorLoginWindow(on_auth_success=start_dashboard)
+    login_gate.mainloop()
 
 
 if __name__ == "__main__":

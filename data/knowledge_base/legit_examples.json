@@ -2,36 +2,57 @@
   {
     "id": "LG001",
     "category": "Legit Bank Transaction Alert",
-    "example_text": "Dear Customer, Rs.2,500.00 debited from A/c XX1234 on 12-Aug-26 to VPA merchant@okaxis. UPI Ref No 123456789012. If not done by you, call 1800-XXX-XXXX.",
-    "why_legit": "No link to click, references specific masked account number and UPI reference ID, provides an official toll-free number rather than asking to click anything.",
-    "source_citation": "Standard bank transaction alert format used by NPCI-linked banks"
+    "example_text": "Rs.2,500.00 debited from A/c XX1234 on 12-Aug-26 to VPA merchant@okaxis. UPI Ref No 123456789012. If not done by you, call 1800-425-3800.",
+    "why_legit": "Contains no links to click, references specific masked account numbers and official UPI reference IDs, and directs users to a legitimate toll-free helpline instead of demanding immediate chat interaction.",
+    "source_citation": "NPCI / RBI Compliant Bank Transaction Notification Standard"
   },
   {
     "id": "LG002",
-    "category": "Legit Delivery Notification",
-    "example_text": "Your Amazon order #402-1234567 is out for delivery and will arrive today by 8 PM. Track: amazon.in/orders",
-    "why_legit": "Uses official domain (amazon.in), no fee requested, no urgency/threat language, references a specific order number.",
-    "source_citation": "Standard e-commerce delivery notification pattern"
+    "category": "Legit E-Commerce Delivery Notice",
+    "example_text": "Your Amazon order #402-1234567 is out for delivery and will arrive today by 8 PM. Track securely at amazon.in/orders",
+    "why_legit": "Links strictly to the verified official domain (amazon.in), requests zero delivery fees, contains no threat language, and references an authentic tracking identifier.",
+    "source_citation": "Standard E-Commerce Logistics Framework"
   },
   {
     "id": "LG003",
-    "category": "Legit OTP Message",
-    "example_text": "123456 is your OTP for login to XYZ Bank NetBanking. Valid for 10 minutes. Do not share this OTP with anyone including bank staff.",
-    "why_legit": "Explicitly warns not to share the OTP with anyone, including bank staff, which is the standard official format; contains no links or payment requests.",
-    "source_citation": "RBI-mandated OTP message format"
+    "category": "Legit OTP Security Message",
+    "example_text": "123456 is your OTP for login to SBI NetBanking. Valid for 10 minutes. Do not share this OTP with anyone including bank staff.",
+    "why_legit": "Includes the mandatory RBI-mandated security disclaimer ('Do not share this OTP with anyone including bank staff'), contains no payment request links, and uses a strict numeric verification token.",
+    "source_citation": "RBI Master Circular on Electronic Banking Security"
   },
   {
     "id": "LG004",
-    "category": "Legit Job Interview Communication",
-    "example_text": "Hi, this is HR from TechCorp Pvt Ltd. Thank you for applying for the Software Engineer role. We would like to schedule a technical interview on Monday at 3 PM via Google Meet. Please confirm your availability.",
-    "why_legit": "No payment requested, uses company's real name and formal process, interview conducted via standard platform, no urgency pressure.",
-    "source_citation": "Standard corporate recruitment communication pattern"
+    "category": "Legit Corporate Interview Scheduling",
+    "example_text": "Hi candidate, this is HR from TechCorp India. Thank you for applying for the Software Engineer role. We would like to schedule your technical interview on Monday at 3 PM via Google Meet. Please confirm your availability.",
+    "why_legit": "Demands no upfront registration fees or deposits, references a formal corporate identity, and utilizes standardized mainstream platforms (Google Meet) without artificial time pressure.",
+    "source_citation": "Standard Corporate HR Recruitment Protocol"
   },
   {
     "id": "LG005",
-    "category": "Legit KYC Reminder (via official channel)",
-    "example_text": "Reminder: Please complete your periodic KYC update by visiting your nearest XYZ Bank branch or logging into the official XYZ Bank mobile app before 30-Sep-2026.",
-    "why_legit": "Directs to official branch or official app rather than an external link, gives a reasonable deadline rather than hours, no threat of immediate account freeze.",
-    "source_citation": "RBI periodic KYC update guidelines"
+    "category": "Legit Periodic KYC Notice",
+    "example_text": "Reminder: Please complete your periodic KYC update by visiting your nearest HDFC Bank branch or logging into the official HDFC MobileBanking app before 30-Sep-2026.",
+    "why_legit": "Directs users securely to physical branches or the official application instead of providing an external phishing link, allowing a reasonable multi-week window without account suspension threats.",
+    "source_citation": "RBI Periodic KYC Guidelines"
+  },
+  {
+    "id": "LG006",
+    "category": "Legit Utility Bill Generation",
+    "example_text": "Your electricity bill for consumer ID 9876543210 for August 2026 amounting to Rs.1,450.00 is generated. View and pay securely via the official portal at msedcl.in.",
+    "why_legit": "Lists exact consumer billing details, specifies an official state government or utility domain (`.in`), and avoids emergency disconnection threats via unverified links.",
+    "source_citation": "State Power Distribution Board Billing Standard"
+  },
+  {
+    "id": "LG007",
+    "category": "Legit Income Tax / Refund Intimation",
+    "example_text": "Dear Taxpayer, your Income Tax Return for Assessment Year 2026-27 has been successfully processed. Refund of Rs.4,200 has been issued to your validated bank account. Check details at incometax.gov.in",
+    "source_citation": "Central Board of Direct Taxes (CBDT) E-Filing Standard",
+    "why_legit": "Directs strictly to the official government portal (`.in` / `.gov.in`) without asking for sensitive PINs, credentials, or advance processing charges."
+  },
+  {
+    "id": "LG008",
+    "category": "Legit Telecom Prepaid Recharge Confirmation",
+    "example_text": "Your recharge of Rs.299 for mobile number XXXXXX1234 is successful. Pack validity: 28 days. Enjoy unlimited calls and 1.5GB/day data. Thank you for choosing Jio.",
+    "why_legit": "Confirms a user-initiated action completed inside an official carrier app, containing zero external action triggers or payment demands.",
+    "source_citation": "TRAI Compliant Telecom Notification Standards"
   }
 ]

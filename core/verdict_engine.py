@@ -1,37 +1,47 @@
 """
-ScamShield-RAG :: Enterprise Verdict & Semantic Matching Engine
+ScamShield-RAG :: Enterprise Verdict & Semantic Matching Engine (v10.0-Ultimate)
 Multi-Vector Cosine Similarity against Transnational Knowledge Base + Deterministic Rule Fusion.
 """
 
 import os
 import json
 import re
+import datetime
 import numpy as np
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import List, Dict, Any, Optional
 
-from core.rule_engine import run_rules
+try:
+    from core.rule_engine import run_rules
+except ImportError:
+    # Fallback mock if running standalone
+    def run_rules(text: str):
+        class DummyReport:
+            rule_based_score = 0.0
+            def triggered_findings(self): return []
+        return DummyReport()
 
 
 @dataclass
 class VerdictResponse:
-    verdict: str                  # LIKELY_SCAM, SUSPICIOUS, LIKELY_LEGITIMATE
-    combined_score: float         # 0.00 to 1.00
-    confidence: float             # Model certainty
-    matched_category: str         # Primary fraud vector
-    dimensions: Dict[str, float]  # 5-Axis radar components
-    mitre_ttps: List[str]         # MITRE ATT&CK taxonomy
-    explanation: str              # Forensic analysis reasoning
-    red_flags: List[str]          # Concrete threat indicators
-    citations: List[str]          # Regulatory circular references
+    verdict: str                    # LIKELY_SCAM, SUSPICIOUS, LIKELY_LEGITIMATE
+    combined_score: float           # 0.00 to 1.00
+    confidence: float               # Model certainty
+    matched_category: str           # Primary fraud vector
+    dimensions: Dict[str, float]    # 5-Axis radar components
+    mitre_ttps: List[str]           # MITRE ATT&CK taxonomy
+    explanation: str                # Forensic analysis reasoning
+    red_flags: List[str]            # Concrete threat indicators
+    citations: List[str]            # Regulatory circular references
+    timestamp: str = field(default_factory=lambda: datetime.datetime.utcnow().isoformat())
 
 
 DEFAULT_KB = [
     {
         "id": "INT-001",
         "category": "Digital Arrest / Statutory Impersonation",
-        "jurisdiction": "Interpol / CBI / Police",
-        "mitre_ttp": "T1656: Impersonation",
+        "jurisdiction": "Interpol / CBI / Police Cyber Cell",
+        "mitre_ttp": "T1656: Financial Impersonation",
         "patterns": [
             "digital arrest supreme court warrant narcotics customs package seizure",
             "mumbai police cbi arrest parcel containing drugs money laundering skype call video verification",
@@ -59,7 +69,7 @@ DEFAULT_KB = [
         ],
         "red_flags": [
             "Unsolicited fee request to release standard parcel",
-            "Links redirecting to non-postal domain suffixes"
+            "Links redirecting to non-postal domain suffixes (.xyz, .top)"
         ],
         "citations": [
             "Universal Postal Union Fraud Alert: Fake Delivery Notices"
@@ -69,7 +79,7 @@ DEFAULT_KB = [
         "id": "JOB-003",
         "category": "Task / Part-Time Employment Scam",
         "jurisdiction": "Cyber Crime Coordination Centre (I4C)",
-        "mitre_ttp": "T1589: Target Profiling",
+        "mitre_ttp": "T1589: Target Profiling & Social Engineering",
         "patterns": [
             "congratulations selected for part time job earn daily registration fee join telegram channel",
             "work from home like youtube videos earn daily pay upfront deposit to unlock tasks"
@@ -86,7 +96,7 @@ DEFAULT_KB = [
         "id": "KYC-004",
         "category": "Banking KYC Expiration / Smishing",
         "jurisdiction": "RBI / National Cyber Security",
-        "mitre_ttp": "T1566: Social Engineering",
+        "mitre_ttp": "T1566: Phishing & Credential Harvesters",
         "patterns": [
             "account kyc has expired account will be blocked in 24 hours update verify net link",
             "bank account suspended verify identity input netbanking credentials immediately"
@@ -103,6 +113,7 @@ DEFAULT_KB = [
 
 
 class VerdictEngine:
+    """Enterprise semantic matching and multi-signal forensic scoring engine."""
     def __init__(self, use_llm: bool = False, kb_path: Optional[str] = None):
         self.use_llm = use_llm
         self.kb_path = kb_path or os.path.join(os.path.dirname(__file__), "..", "data", "fraud_kb.json")
@@ -120,9 +131,12 @@ class VerdictEngine:
             except Exception:
                 pass
         
-        os.makedirs(os.path.dirname(self.kb_path), exist_ok=True)
-        with open(self.kb_path, "w", encoding="utf-8") as f:
-            json.dump(DEFAULT_KB, f, indent=2)
+        try:
+            os.makedirs(os.path.dirname(self.kb_path), exist_ok=True)
+            with open(self.kb_path, "w", encoding="utf-8") as f:
+                json.dump(DEFAULT_KB, f, indent=2)
+        except Exception:
+            pass
         return DEFAULT_KB
 
     def _init_vector_store(self):
@@ -138,7 +152,8 @@ class VerdictEngine:
                     self.flat_patterns.append(pat)
                     self.pattern_to_doc.append(doc)
 
-            self.kb_embeddings = self.encoder.encode(self.flat_patterns, normalize_embeddings=True)
+            if self.flat_patterns:
+                self.kb_embeddings = self.encoder.encode(self.flat_patterns, normalize_embeddings=True)
         except Exception:
             self.encoder = None
 
@@ -152,31 +167,30 @@ class VerdictEngine:
         return self.pattern_to_doc[best_idx], float(similarities[best_idx])
 
     def _is_safe_whitelisted(self, text: str) -> bool:
-        """Explicitly catches authentic service messages and security disclaimers."""
+        """Explicitly catches authentic service messages, transactional OTPs, and security disclaimers."""
         t = text.lower()
         # Legitimate login OTP notification containing protective disclaimers
-        if re.search(r"\b\d{4,8}\s+is\s+your\s+(?:otp|login\s+code)\b", t) and re.search(r"\b(?:do\s+not|never)\s+share\b", t):
+        if re.search(r"\b\d{4,8}\s+is\s+your\s+(?:otp|login\s+code|verification\s+code)\b", t) and re.search(r"\b(?:do\s+not|never)\s+share\b", t):
             return True
         # Legitimate e-commerce tracking (Amazon, Flipkart, official domains)
-        if "out for delivery" in t and ("amazon.in" in t or "flipkart.com" in t or "amazon.com" in t):
+        if "out for delivery" in t and any(domain in t for domain in ["amazon.in", "flipkart.com", "amazon.com"]):
             return True
         return False
 
     def _compute_heuristics(self, text: str) -> Dict[str, float]:
         t = text.lower()
 
-        urgency_words = ["urgent", "immediately", "arrest", "custody", "within 24 hours", "blocked in", "tonight", "transfer funds"]
-        urgency_score = min(1.0, sum(0.30 for w in urgency_words if w in t))
+        urgency_words = ["urgent", "immediately", "arrest", "custody", "within 24 hours", "blocked in", "tonight", "transfer funds", "expires"]
+        urgency_score = min(1.0, sum(0.25 for w in urgency_words if w in t))
 
-        impersonate_words = ["customs", "cbi", "rbi", "digital arrest", "police", "inspector", "court"]
-        impersonation_score = min(1.0, sum(0.35 for w in impersonate_words if w in t))
+        impersonate_words = ["customs", "cbi", "rbi", "digital arrest", "police", "inspector", "court", "supreme court", "ed"]
+        impersonation_score = min(1.0, sum(0.30 for w in impersonate_words if w in t))
 
-        # Financial score (only triggers if money solicitation or fee is demanded)
-        fin_words = ["transfer", "customs fee", "registration fee", "pay rs", "deposit"]
-        fin_score = min(1.0, sum(0.35 for w in fin_words if w in t))
+        fin_words = ["transfer", "customs fee", "registration fee", "pay rs", "deposit", "collect request", "pay ₹"]
+        fin_score = min(1.0, sum(0.30 for w in fin_words if w in t))
 
-        evasion_words = ["do not disconnect", "t.me/", "telegram", "earn rs"]
-        evasion_score = min(1.0, sum(0.30 for w in evasion_words if w in t))
+        evasion_words = ["do not disconnect", "t.me/", "telegram", "earn rs", "skype call", "apk"]
+        evasion_score = min(1.0, sum(0.25 for w in evasion_words if w in t))
 
         return {
             "urgency": urgency_score,
@@ -205,7 +219,7 @@ class VerdictEngine:
                     "Vector Proximity": 0.04
                 },
                 mitre_ttps=["T0000: Standard Benign Artifact"],
-                explanation="Authentic communication verified. Matches standard operational notification profiles.",
+                explanation="Authentic communication verified. Matches standard operational notification profiles with proper security disclaimers.",
                 red_flags=[],
                 citations=["Global Baseline Safe-List (ISO/IEC 27001)"]
             )
@@ -222,7 +236,7 @@ class VerdictEngine:
             "Vector Proximity": max(0.04, vector_score)
         }
 
-        # Base composite score
+        # Composite heuristic score calculation
         base_heuristic = (
             dimensions["Urgency / Coercion"] * 0.30 +
             dimensions["Impersonation"] * 0.30 +
@@ -238,7 +252,7 @@ class VerdictEngine:
 
         combined_score = round(min(1.0, max(0.0, combined_score)), 2)
 
-        # 4. Classification
+        # 4. Classification Mapping
         if combined_score >= 0.55:
             verdict = "LIKELY_SCAM"
             confidence = min(0.99, 0.85 + (combined_score * 0.14))
@@ -249,7 +263,7 @@ class VerdictEngine:
             verdict = "LIKELY_LEGITIMATE"
             confidence = max(0.88, 1.0 - combined_score)
 
-        # 5. Output Packaging
+        # 5. Output Packaging & Forensic Explanations
         if best_doc and combined_score >= 0.35:
             category = best_doc["category"]
             ttps = [best_doc["mitre_ttp"]]
@@ -262,7 +276,7 @@ class VerdictEngine:
         else:
             category = "Standard Operational Notice"
             ttps = ["T0000: Standard Benign Artifact"]
-            red_flags = []
+            red_flags = [f.description for f in rule_findings] if rule_findings else []
             citations = ["Standard Notification Baseline"]
             explanation = "No malicious manipulation markers or unverified financial diversion links found."
 

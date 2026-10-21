@@ -1,18 +1,18 @@
 [
   {
     "id": "INT-001",
-    "category": "Digital Arrest / Statutory Impersonation",
-    "jurisdiction": "Interpol / CBI / Police",
-    "mitre_ttp": "T1656: Impersonation",
+    "category": "Digital Arrest / Transnational Statutory Impersonation",
+    "jurisdiction": "Interpol / CBI / Global Law Enforcement",
+    "mitre_ttp": "T1656: Impersonation & T1566: Social Engineering",
     "patterns": [
       "digital arrest supreme court warrant narcotics customs package seizure",
       "mumbai police cbi arrest parcel containing drugs money laundering skype call video verification",
       "stay on video call do not disconnect immediate court warrant bank account verification"
     ],
     "red_flags": [
-      "Coercive video confinement ('Digital Arrest')",
-      "Threat of immediate custody without judicial summons",
-      "Demands asset transfer to 'RBI safe accounts' for verification"
+      "Coercive video confinement or psychological isolation ('Digital Arrest')",
+      "Threat of immediate custody or extradition without formal judicial summons",
+      "Demands for asset transfer or liquidation into 'RBI/Central Bank safe escrow accounts' for verification"
     ],
     "citations": [
       "CERT-In Advisory CIAD-2026-0089: Digital Arrest Syndicates",
@@ -22,62 +22,82 @@
   },
   {
     "id": "IC3-002",
-    "category": "CEO Fraud / Business Email Compromise",
-    "jurisdiction": "FBI IC3",
-    "mitre_ttp": "T1566.002: Spearphishing Link",
+    "category": "Business Email Compromise (BEC) & Executive Impersonation",
+    "jurisdiction": "FBI IC3 / Europol EC3",
+    "mitre_ttp": "T1566.002: Spearphishing Link & T1589: Target Profiling",
     "patterns": [
       "urgent wire payment vendor acquisition do not discuss confidential direct transfer",
       "executive transfer accounts settlement invoice overdue swift transfer immediately",
       "payroll account change bank routing information urgent direct deposit"
     ],
     "red_flags": [
-      "Executive bypass of dual-control accounting checks",
-      "Severe manufactured time sensitivity",
-      "Out-of-band wire instruction alterations"
+      "Bypassing standard internal dual-control accounting and verification checks",
+      "Severe manufactured time sensitivity or confidentiality constraints",
+      "Out-of-band wire instruction alterations or new overseas beneficiary routing"
     ],
     "citations": [
-      "FBI IC3 Alert: Business Email Compromise (BEC) Trends",
-      "Europol EC3 Threat Notice: Executive Impersonation"
+      "FBI IC3 Alert: Business Email Compromise (BEC) Global Trends",
+      "Europol EC3 Threat Notice: Executive Impersonation & Wire Diversion"
     ]
   },
   {
     "id": "NCSC-003",
-    "category": "Banking Trojan / OTP Exfiltration",
-    "jurisdiction": "RBI / NCSC / UK",
-    "mitre_ttp": "T1589: Target Profiling",
+    "category": "Banking Trojan, Smishing & Multi-Factor Authentication Exfiltration",
+    "jurisdiction": "RBI / NCSC / UK / Global Central Banks",
+    "mitre_ttp": "T1589: Target Profiling & T1204: User Execution (Malicious Link/APK)",
     "patterns": [
       "electricity bill overdue power disconnection tonight update kyc click link",
       "debit card blocked update pan card to prevent deactivation send otp",
       "bank account suspended verify identity input netbanking credentials"
     ],
     "red_flags": [
-      "Threat of service termination (power, SIM, bank account)",
-      "Third-party APK or phishing domain delivery",
-      "Requests for OTP, CVV, or netbanking passwords"
+      "Coercive threat of vital service termination (power, telecommunication SIM, bank account)",
+      "Distribution of third-party side-loaded APK installers or obfuscated phishing domains",
+      "Direct solicitation of dynamic OTPs, CVVs, or NetBanking transaction passwords"
     ],
     "citations": [
-      "RBI Master Circular: Prevention of Electronic Banking Fraud",
-      "UK NCSC Advisory: Smishing and Phishing Telemetry"
+      "RBI Master Circular: Prevention of Electronic Banking Fraud & Security Controls",
+      "UK NCSC Advisory: Telemetry Analysis on Smishing and Phishing Vectors"
     ]
   },
   {
     "id": "FTC-004",
-    "category": "Pig Butchering / Synthetic Investment",
-    "jurisdiction": "US FTC / FinCEN",
-    "mitre_ttp": "T1586: Compromised Accounts",
+    "category": "Pig Butchering / Synthetic Cryptocurrency Investment Fraud",
+    "jurisdiction": "US FTC / FinCEN / Global Financial Regulators",
+    "mitre_ttp": "T1586: Compromised Accounts & T1486: Data Encrypted for Impact (Asset Lock)",
     "patterns": [
       "guaranteed high yield return crypto arbitrage deposit funds liquidity pool vip investment",
       "forex trading signals whatsapp telegram group insider profits daily withdrawal locked",
       "institutional investment trading platform tax deposit required before release"
     ],
     "red_flags": [
-      "Guaranteed outsized returns with zero downside risk",
-      "Demands tax/liquidity deposit to unlock withdrawals",
-      "Communication migrated to unencrypted channels (Telegram/WhatsApp)"
+      "Guaranteed outsized financial returns with zero operational or market downside risk",
+      "Mandatory payment of upfront 'taxes', 'gas fees', or 'liquidity deposits' to unlock trapped withdrawals",
+      "Communication immediately migrated to unencrypted or pseudonymous channels (Telegram, WhatsApp, Signal)"
     ],
     "citations": [
-      "FinCEN Notice FIN-2023-NTC2: Pig Butchering Scams",
-      "US FTC Consumer Warning: Fake Crypto Trading Portals"
+      "FinCEN Notice FIN-2023-NTC2: Global Pig Butchering Financial Scams",
+      "US FTC Consumer Protection Warning: Fraudulent Crypto Trading Platforms"
+    ]
+  },
+  {
+    "id": "GLOBAL-005",
+    "category": "Phishing-as-a-Service (PaaS) & Real-Time Session Hijacking",
+    "jurisdiction": "CISA / ENISA / Global Cybersecurity Authorities",
+    "mitre_ttp": "T1539: Steal Web Session Cookie & T1185: Browser Session Hijacking",
+    "patterns": [
+      "microsoft 365 session expired re-authenticate sign in security portal",
+      "google workspace account security update verification link required immediately",
+      "corporate identity provider SSO login token refresh mandatory click here"
+    ],
+    "red_flags": [
+      "Adverse proxy setups or typosquatted domains mimicking enterprise Single Sign-On (SSO) portals",
+      "Unexpected prompts to re-authenticate outside normal maintenance windows",
+      "Real-time interception of hardware-backed or software-based Time-based One-Time Passwords (TOTP)"
+    ],
+    "citations": [
+      "CISA / ENISA Joint Advisory on Multi-Factor Authentication Bypass & Reverse Proxy Phishing",
+      "OWASP Top 10 API Security Risks: Broken Authentication"
     ]
   }
 ]

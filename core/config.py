@@ -1,24 +1,35 @@
 """
 ScamShield-RAG :: Central Configuration & Runtime Constants
+Enterprise-Grade Environment & Design System Configuration
 """
 
 import os
+from typing import Dict
 
+# Core Directory Architecture
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 DATA_DIR = os.path.join(BASE_DIR, "data")
 os.makedirs(DATA_DIR, exist_ok=True)
 
-HISTORY_FILE = os.path.join(DATA_DIR, "scamshield_audit.json")
-KB_FILE = os.path.join(DATA_DIR, "fraud_kb.json")
-MAX_AUDIT_RECORDS = 500
+# Runtime Data Storage Paths (Overridable via Environment Variables)
+HISTORY_FILE = os.getenv("SCAMSHIELD_HISTORY_FILE", os.path.join(DATA_DIR, "scamshield_audit.json"))
+KB_FILE = os.getenv("SCAMSHIELD_KB_FILE", os.path.join(DATA_DIR, "fraud_kb.json"))
+MAX_AUDIT_RECORDS = int(os.getenv("SCAMSHIELD_MAX_AUDIT_RECORDS", 1000))
 
+# Threat Intelligence Engine Parameters
+DEFAULT_REQUEST_TIMEOUT = 5.0  # Seconds
+MAX_REDIRECT_HOPS = 5
+ENABLE_TELEMETRY_LOGGING = os.getenv("SCAMSHIELD_TELEMETRY", "True").lower() == "true"
+
+# Legal & Academic Disclaimer
 APP_DISCLAIMER = (
     "ScamShield-RAG is an academic and cyber defense intelligence prototype. "
     "Verdicts are computed via multi-vector neural matching and deterministic heuristics "
     "against international fraud databases (CERT-In, IC3, Interpol, Europol). Not a legal determination."
 )
 
-THEME = {
+# Advanced Cyber-Theme Design System (Cyberpunk/SOC Dark Mode)
+THEME: Dict[str, str] = {
     "bg_app": "#06090F",
     "bg_sidebar": "#0A0E17",
     "bg_card": "#101624",
@@ -35,5 +46,9 @@ THEME = {
     "suspicious": "#FBBF24",
     "suspicious_bg": "#2B1A04",
     "safe": "#10B981",
-    "safe_bg": "#022B1E"
+    "safe_bg": "#022B1E",
+    # Extended UI Design Tokens
+    "font_family": "'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif",
+    "shadow_card": "0 4px 20px -2px rgba(0, 240, 255, 0.05)",
+    "transition_speed": "0.2s ease-in-out"
 }
