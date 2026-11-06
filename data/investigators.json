@@ -43,5 +43,14 @@
     "salt": "a0f98e0a8893636f",
     "pin_hash": "fc4f5701092ce4c0a2c12bee2c7c5b231efced3cd401c74815f2d4e85f3f414e",
     "created_at": "2026-10-22T03:53:18.984362"
+  },
+  "24037": {
+    "name": "Sam",
+    "badge_id": "24037",
+    "agency": "Student",
+    "role": "Forensic Cyber Analyst",
+    "salt": "98573de084b8074d",
+    "pin_hash": "9338d9ac8fd3291b9e7e4e3d7f454dd7aa69673fd917dd02223bbb17713bf9f9",
+    "created_at": "2026-11-06T15:27:46.422561"
   }
 }
