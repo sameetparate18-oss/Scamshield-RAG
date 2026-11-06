@@ -11,6 +11,8 @@ import time
 import math
 import urllib.parse
 import threading
+import re
+import logging
 import traceback
 from datetime import datetime
 import tkinter as tk
@@ -44,12 +46,18 @@ except ImportError:
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, BASE_DIR)
 
+logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s")
+logger = logging.getLogger("scamshield")
+
+DEMO_MODE = False
 try:
     from core.ingest import ingest_text, ingest_auto
     from core.verdict_engine import VerdictEngine
     from core.report_generator import generate_ncrp_dossier
-except ImportError:
-    # Production fallback harness for standalone execution
+except ImportError as _core_err:
+    # Fallback harness: results are SIMULATED. The UI shows a DEMO MODE badge.
+    DEMO_MODE = True
+    logger.warning("Core modules missing (%s). Running in DEMO MODE with simulated verdicts.", _core_err)
     class DummyVerdict:
         def __init__(self, text):
             lowered = text.lower()
@@ -169,7 +177,22 @@ PSP_BANK_MAP = {
     "cnrb": {"bank": "Canara Bank", "provider": "Canara AI1"},
     "pnb": {"bank": "Punjab National Bank", "provider": "PNB One"},
     "kotak": {"bank": "Kotak Mahindra Bank", "provider": "Kotak 811"},
-    "indus": {"bank": "IndusInd Bank", "provider": "IndusMobile"}
+    "indus": {"bank": "IndusInd Bank", "provider": "IndusMobile"},
+    # Additional common handles (not exhaustive - verify against the current NPCI list)
+    "ptaxis": {"bank": "Axis Bank", "provider": "Paytm"},
+    "ptyes": {"bank": "YES Bank", "provider": "Paytm"},
+    "pthdfc": {"bank": "HDFC Bank", "provider": "Paytm"},
+    "ptsbi": {"bank": "State Bank of India", "provider": "Paytm"},
+    "apl": {"bank": "Axis Bank", "provider": "Amazon Pay"},
+    "yapl": {"bank": "YES Bank", "provider": "Amazon Pay"},
+    "ikwik": {"bank": "MobiKwik", "provider": "MobiKwik"},
+    "fbl": {"bank": "Federal Bank", "provider": "Federal Bank"},
+    "freecharge": {"bank": "Freecharge", "provider": "Freecharge"},
+    "airtel": {"bank": "Airtel Payments Bank", "provider": "Airtel Thanks"},
+    "sbi": {"bank": "State Bank of India", "provider": "SBI Pay"},
+    "icici": {"bank": "ICICI Bank", "provider": "iMobile Pay"},
+    "hdfcbank": {"bank": "HDFC Bank", "provider": "PayZapp"},
+    "axisbank": {"bank": "Axis Bank", "provider": "Axis Pay"}
 }
 
 
@@ -222,11 +245,24 @@ def local_qr_analyzer(raw_data: str) -> dict:
     anomalies = []
     risk_score = 0.0
 
-    if handle not in PSP_BANK_MAP:
-        anomalies.append(f"Unregistered or private PSP handle (@{handle}).")
+    if "@" not in vpa:
+        anomalies.append("Missing or malformed VPA (pa parameter).")
         risk_score += 0.35
+    elif handle not in PSP_BANK_MAP:
+        anomalies.append(f"PSP handle (@{handle}) not in the local registry - verify against the NPCI list.")
+        risk_score += 0.15
 
-    if amount and float(amount or 0) > 0:
+    amount_value = 0.0
+    if amount:
+        try:
+            amount_value = float(amount)
+            if not math.isfinite(amount_value):
+                raise ValueError("non-finite amount")
+        except ValueError:
+            amount_value = 0.0
+            anomalies.append(f"Malformed amount parameter (am={amount!r}).")
+            risk_score += 0.20
+    if amount_value > 0:
         anomalies.append(f"Static debit charge of ₹{amount} pre-locked in QR.")
         risk_score += 0.20
 
@@ -255,6 +291,24 @@ def local_qr_analyzer(raw_data: str) -> dict:
     }
 
 
+def _count_hits(text: str, markers) -> int:
+    """Count how many markers occur in `text` (already lower-cased).
+
+    Alphanumeric starts/ends are anchored with word boundaries, so a short marker
+    such as "ed" or "pay" no longer matches inside unrelated words. Markers of
+    3 chars or fewer must match a whole word; longer ones may be prefixes
+    ("block" still matches "blocked").
+    """
+    hits = 0
+    for k in markers:
+        pattern = ("\\b" if k[0].isalnum() else "") + re.escape(k)
+        if len(k) <= 3 and k[-1].isalnum():
+            pattern += "\\b"
+        if re.search(pattern, text):
+            hits += 1
+    return hits
+
+
 class ScamShieldApp(ctk.CTk):
     def __init__(self, session=None):
         super().__init__()
@@ -279,26 +333,33 @@ class ScamShieldApp(ctk.CTk):
         self._build_dashboard_skeleton()
         self._show_page("scanner")
         self._init_engine_thread()
-        # Action Buttons Row
-
         self.bind_all("<Control-Return>", lambda _: self._run_analysis())
     def _load_audit_trail(self):
-        if os.path.exists(HISTORY_FILE):
+        if not os.path.exists(HISTORY_FILE):
+            return []
+        try:
+            with open(HISTORY_FILE, "r", encoding="utf-8") as f:
+                data = json.load(f)
+            return data[-MAX_RECORDS:] if isinstance(data, list) else []
+        except Exception as e:
+            # Never let a corrupt file be silently overwritten: keep a backup copy.
+            backup = f"{HISTORY_FILE}.corrupt-{datetime.now().strftime('%Y%m%d_%H%M%S')}"
             try:
-                with open(HISTORY_FILE, "r", encoding="utf-8") as f:
-                    data = json.load(f)
-                    return data[-MAX_RECORDS:] if isinstance(data, list) else []
-            except Exception:
-                pass
-        return []
+                os.replace(HISTORY_FILE, backup)
+                logger.error("Audit trail unreadable (%s). Backed up to %s", e, backup)
+            except OSError:
+                logger.error("Audit trail unreadable (%s) and could not be backed up.", e)
+            return []
 
     def _persist_audit_trail(self):
+        tmp_path = HISTORY_FILE + ".tmp"
         try:
             os.makedirs(os.path.dirname(HISTORY_FILE), exist_ok=True)
-            with open(HISTORY_FILE, "w", encoding="utf-8") as f:
+            with open(tmp_path, "w", encoding="utf-8") as f:
                 json.dump(self.history_records[-MAX_RECORDS:], f, indent=2)
+            os.replace(tmp_path, HISTORY_FILE)  # atomic swap: no half-written file
         except Exception:
-            pass
+            logger.exception("Could not save the audit trail")
 
     def _build_dashboard_skeleton(self):
         self.grid_columnconfigure(1, weight=1)
@@ -1491,35 +1552,35 @@ class ScamShieldApp(ctk.CTk):
             "immediate", "urgent", "tonight", "9:30 pm", "24 hours", "arrest",
             "custody", "penalty", "block", "suspend", "disconnect", "warrant", "fine"
         ]
-        u_hits = sum(1 for k in urgency_markers if k in t)
+        u_hits = _count_hits(t, urgency_markers)
         urgency_val = min(1.0, 0.2 + (u_hits * 0.22)) if u_hits > 0 else (0.1 if score < 0.3 else 0.35)
 
         impersonation_markers = [
             "cbi", "police", "customs", "ed", "sbi", "yono", "electricity",
             "nodal", "officer", "bank", "mha", "headquarters", "inspector"
         ]
-        i_hits = sum(1 for k in impersonation_markers if k in t)
+        i_hits = _count_hits(t, impersonation_markers)
         impersonation_val = min(1.0, 0.25 + (i_hits * 0.22)) if i_hits > 0 else (0.1 if score < 0.3 else 0.3)
 
         financial_markers = [
-            "transfer", "₹", "rs.", "upi", "pay", "deposit",
+            "transfer", "₹", "rs.", "upi", "pay", "payment", "fees", "deposit",
             "investment", "bond", "holding", "fee", "clearance", "settlement"
         ]
-        f_hits = sum(1 for k in financial_markers if k in t)
+        f_hits = _count_hits(t, financial_markers)
         financial_val = min(1.0, 0.2 + (f_hits * 0.22)) if f_hits > 0 else (0.1 if score < 0.3 else 0.25)
 
         evasion_markers = [
-            "@okhdfcbank", "@ptaxis", "http://", "https://", ".top/",
+            "http://", "https://", ".top/",
             ".xyz/", ".apk", "telegram", "tinyurl", "bit.ly", "raw.github"
         ]
-        e_hits = sum(1 for k in evasion_markers if k in t)
+        e_hits = _count_hits(t, evasion_markers)
         evasion_val = min(1.0, 0.2 + (e_hits * 0.24)) if e_hits > 0 else 0.12
 
         proximity_markers = [
             ".apk", "download", "install", "anydesk", "teamviewer",
             "screen", "live call", "skype", "allow from this source", "accessibility"
         ]
-        p_hits = sum(1 for k in proximity_markers if k in t)
+        p_hits = _count_hits(t, proximity_markers)
         proximity_val = min(1.0, 0.35 + (p_hits * 0.32)) if p_hits > 0 else (0.25 if f_hits > 0 else 0.1)
 
         if score > 0.6:
@@ -1823,92 +1884,6 @@ class ScamShieldApp(ctk.CTk):
      # ==================================================================
     # PAGE 5: GENERATE CYBER COMPLAINT & REPORT
     # ==================================================================
-    def _generate_cyber_crime_report(self):
-        """Generates a formal NCRP / Cyber Cell FIR complaint from the active scan."""
-        if not self.last_scan:
-            messagebox.showinfo("No Active Evidence", "Please run a threat assessment or stage an artifact first.")
-            return
-
-        v = self.last_scan["verdict"]
-        ing = self.last_scan["ingest_res"]
-        raw_input = self.last_scan["input"]
-
-        # Package verdict into dictionary
-        v_dict = {
-            "verdict": v.verdict,
-            "combined_score": v.combined_score,
-            "matched_category": getattr(v, "matched_category", "Cyber Impersonation"),
-            "mitre_ttps": getattr(v, "mitre_ttps", []),
-            "explanation": getattr(v, "explanation", ""),
-            "red_flags": getattr(v, "red_flags", [])
-        }
-
-        # Check if QR metadata was ingested
-        qr_info = getattr(ing, "metadata", {}).get("qr_info") if hasattr(ing, "metadata") else None
-
-        # Build top-tier NCRP document
-        report_text = generate_ncrp_dossier(
-            incident_type=v_dict["matched_category"],
-            evidence_text=raw_input,
-            verdict_data=v_dict,
-            qr_data=qr_info
-        )
-
-        # Show in dedicated export preview dialog
-        preview_win = ctk.CTkToplevel(self)
-        preview_win.title("Cyber Crime Reporting Portal (NCRP) — Complaint Builder")
-        preview_win.geometry("900x700")
-        preview_win.configure(fg_color=THEME["bg_app"])
-
-        lbl_top = ctk.CTkLabel(
-            preview_win,
-            text="🛡️ National Cyber Crime Complaint (cybercrime.gov.in / FIR Draft)",
-            font=ctk.CTkFont("Segoe UI", 16, "bold"),
-            text_color=THEME["text_main"]
-        )
-        lbl_top.pack(anchor="w", padx=20, pady=(18, 4))
-
-        lbl_sub = ctk.CTkLabel(
-            preview_win,
-            text="Pre-formatted under IT Act 2000 & Bharatiya Nyaya Sanhita (BNS) 2023 with auto-extracted suspect VPAs, URLs, and phone numbers.",
-            font=ctk.CTkFont("Segoe UI", 11),
-            text_color=THEME["text_muted"]
-        )
-        lbl_sub.pack(anchor="w", padx=20, pady=(0, 10))
-
-        txt_preview = ctk.CTkTextbox(
-            preview_win,
-            font=ctk.CTkFont("Consolas", 11),
-            fg_color=THEME["bg_card_inner"],
-            border_width=1,
-            border_color=THEME["border"]
-        )
-        txt_preview.pack(fill="both", expand=True, padx=20, pady=10)
-        txt_preview.insert("end", report_text)
-
-        btn_row = ctk.CTkFrame(preview_win, fg_color="transparent")
-        btn_row.pack(fill="x", padx=20, pady=(0, 18))
-
-        def _save_file():
-            fn = f"NCRP_Complaint_{datetime.now().strftime('%Y%m%d_%H%M%S')}.txt"
-            p = filedialog.asksaveasfilename(defaultextension=".txt", initialfile=fn, filetypes=[("Text file", "*.txt")])
-            if p:
-                with open(p, "w", encoding="utf-8") as f:
-                    f.write(report_text)
-                messagebox.showinfo("Report Saved", f"Cyber Crime Complaint Dossier successfully saved to:\n{p}")
-
-        def _copy():
-            preview_win.clipboard_clear()
-            preview_win.clipboard_append(report_text)
-            btn_copy.configure(text="Copied to Clipboard!")
-            preview_win.after(1400, lambda: btn_copy.configure(text="📋 Copy Complaint"))
-
-        btn_save = ctk.CTkButton(btn_row, text="💾 Save Complaint (.txt)", font=ctk.CTkFont("Segoe UI", 12, "bold"), fg_color=THEME["accent"], text_color="#06090F", command=_save_file)
-        btn_save.pack(side="right", padx=(10, 0))
-
-        btn_copy = ctk.CTkButton(btn_row, text="📋 Copy Complaint", font=ctk.CTkFont("Segoe UI", 12, "bold"), fg_color=THEME["border"], command=_copy)
-        btn_copy.pack(side="right")
-
     # ==================================================================
     # PAGE 6: FORENSIC AUDIT TRAIL (WITH SEARCH)
     # ==================================================================
@@ -2042,7 +2017,10 @@ class ScamShieldApp(ctk.CTk):
         threading.Thread(target=_worker, daemon=True).start()
 
     def _on_engine_ready(self):
-        self.badge_engine.configure(text="● Engine: Neural Core Active", text_color=THEME["safe"], fg_color=THEME["safe_bg"])
+        if DEMO_MODE:
+            self.badge_engine.configure(text="● DEMO MODE: Simulated Verdicts", text_color=THEME["suspicious"], fg_color=THEME["suspicious_bg"])
+        else:
+            self.badge_engine.configure(text="● Engine: Neural Core Active", text_color=THEME["safe"], fg_color=THEME["safe_bg"])
         self.btn_analyze.configure(state="normal")
 
     def _on_engine_fault(self, err):
@@ -2101,16 +2079,16 @@ class ScamShieldApp(ctk.CTk):
             self.lbl_file_display.configure(text=f"Staged: {os.path.basename(p)}", text_color=THEME["accent"])
 
     def _run_analysis(self):
-        print("\n[DEBUG] >>> Run Threat Assessment clicked! <<<")
+        logger.debug(">>> Run Threat Assessment clicked! <<<")
 
         # 1. Determine active input source & define mode
         active_tab = self.tabs.get()
-        print(f"[DEBUG] Active tab: {active_tab}")
+        logger.debug(f"Active tab: {active_tab}")
 
         if active_tab == "Raw Communication / Script":
             mode = "text"
             raw_input = self.txt_evidence.get("1.0", "end").strip()
-            print(f"[DEBUG] Input length: {len(raw_input)} characters")
+            logger.debug(f"Input length: {len(raw_input)} characters")
             if not raw_input:
                 messagebox.showwarning("Missing Input", "Please provide a communication snippet to analyze.")
                 return
@@ -2128,7 +2106,7 @@ class ScamShieldApp(ctk.CTk):
 
         payload = raw_input
         
-     # UI Pipeline Feedback & State Lockdown
+        # UI Pipeline Feedback & State Lockdown
         self.btn_analyze.configure(state="disabled")
         self.pipeline_box.grid(row=5, column=0, sticky="ew", pady=(8, 0))
         self.lbl_pipeline_step.configure(text="Step 1/4: Generating SHA-256 Custody Seal...")
@@ -2140,10 +2118,10 @@ class ScamShieldApp(ctk.CTk):
 
             try:
                 # STEP 1: Custody Seal
-                print("[DEBUG] Step 1: Starting SHA-256 hashing...")
+                logger.debug("Step 1: Starting SHA-256 hashing...")
                 hashes = hash_artifact(artifact_bytes)
                 evidence_id = f"EVID_{datetime.now().strftime('%Y%m%d_%H%M%S')}_{hashes['sha256'][:8]}"
-                print(f"[DEBUG] Hash generated: {hashes['sha256'][:16]}...")
+                logger.debug(f"Hash generated: {hashes['sha256'][:16]}...")
 
                 custody_meta = {
                     "source_tab": active_tab,
@@ -2159,13 +2137,28 @@ class ScamShieldApp(ctk.CTk):
 
                 
                 # STEP 2: Live Global Web OSINT & Knowledge Base Query
-                print("[DEBUG] Step 2: Querying Web Intel...")
+                logger.debug("Step 2: Querying Web Intel...")
                 self.after(0, lambda: self.lbl_pipeline_step.configure(
                     text="Step 2/4: Querying Live Global Web & Threat Intelligence..."
                 ))
                 t_ingest_start = time.time()
 
                 analyzable_text = payload
+                ingest_res = None
+
+                if mode == "multimodal":
+                    self.after(0, lambda: self.lbl_pipeline_step.configure(
+                        text="Step 2/4: Extracting text from artifact (OCR / transcription)..."
+                    ))
+                    ingest_res = ingest_auto(self.selected_file_path)
+                    if not getattr(ingest_res, "success", False):
+                        raise RuntimeError(
+                            getattr(ingest_res, "error", None)
+                            or "Could not extract text from the artifact."
+                        )
+                    analyzable_text = (getattr(ingest_res, "extracted_text", "") or "").strip()
+                    if not analyzable_text:
+                        raise RuntimeError("No readable text found in the artifact.")
                 search_query = analyzable_text[:120].replace("\n", " ").strip()
                 web_citations = []
 
@@ -2178,9 +2171,8 @@ class ScamShieldApp(ctk.CTk):
                                     f"[{hit.get('source', 'Web Intel')}] {hit.get('title', 'Advisory')}: {hit.get('snippet')} ({hit.get('url', '')})"
                                 )
                 except Exception as web_err:
-                    print(f"[DEBUG] Web OSINT search notice: {web_err}")
+                    logger.debug(f"Web OSINT search notice: {web_err}")
 
-                import re
                 found_urls = re.findall(r"https?://[^\s<>\"']+|www\.[^\s<>\"']+", analyzable_text)
                 if found_urls and hasattr(self, "web_intel") and self.web_intel:
                     for target_url in found_urls[:2]:
@@ -2189,7 +2181,7 @@ class ScamShieldApp(ctk.CTk):
                             if feed_rep.get("is_flagged"):
                                 web_citations.insert(0, f"[CRITICAL URLhaus Alert] {target_url} flagged as {feed_rep.get('threat')}")
                         except Exception as feed_err:
-                            print(f"[DEBUG] Feed verification notice: {feed_err}")
+                            logger.debug(f"Feed verification notice: {feed_err}")
 
                 try:
                     if hasattr(self, "rag_kb") and self.rag_kb:
@@ -2197,22 +2189,31 @@ class ScamShieldApp(ctk.CTk):
                         for item in matched_intel:
                             web_citations.append(f"[{item.get('id', 'CERT-In')}] {item.get('title', 'Advisory')}: {item.get('advisory', '')}")
                 except Exception as rag_err:
-                    print(f"[DEBUG] RAG retrieval notice: {rag_err}")
+                    logger.debug(f"RAG retrieval notice: {rag_err}")
 
                 elapsed["ingest"] = round(time.time() - t_ingest_start, 2)
 
                 # STEP 3: Classification Analysis
-                print("[DEBUG] Step 3: Running Threat Classifier...")
+                logger.debug("Step 3: Running Threat Classifier...")
                 self.after(0, lambda: self.lbl_pipeline_step.configure(
                     text="Step 3/4: Synthesizing Model Verdict..."
                 ))
                 t_analysis_start = time.time()
 
-                from core.scam_classifier import analyze_threat
                 try:
-                    verdict = analyze_threat(analyzable_text, mode=mode)
-                except TypeError:
-                    verdict = analyze_threat(analyzable_text)
+                    from core.scam_classifier import analyze_threat
+                except ImportError:
+                    analyze_threat = None
+
+                if analyze_threat is not None:
+                    try:
+                        verdict = analyze_threat(analyzable_text, mode=mode)
+                    except TypeError:
+                        verdict = analyze_threat(analyzable_text)
+                elif self.engine is not None:
+                    verdict = self.engine.analyze(analyzable_text)
+                else:
+                    raise RuntimeError("No classifier available: core.scam_classifier is missing and the engine is not loaded.")
 
                 verdict.evidence_id = evidence_id
                 verdict.vault_file = vault_path
@@ -2224,23 +2225,27 @@ class ScamShieldApp(ctk.CTk):
                 elapsed["analysis"] = round(time.time() - t_analysis_start, 2)
                 elapsed["total"] = round(time.time() - t_start, 2)
 
-                self.last_scan = {
+                scan_record = {
                     "verdict": verdict,
                     "input": analyzable_text,
                     "payload": analyzable_text,
+                    "ingest_res": ingest_res,
                     "elapsed": elapsed
                 }
 
                 # STEP 4: Render UI Outputs
-                print("[DEBUG] Step 4: Updating UI...")
-                self.after(0, lambda: self.lbl_pipeline_step.configure(text="Step 4/4: Complete"))
-                self.after(0, lambda: self.btn_analyze.configure(state="normal"))
-                self.after(0, lambda: self._on_scan_success(verdict, None, analyzable_text, elapsed))
+                logger.debug("Step 4: Updating UI...")
+                def _finish():
+                    # Runs on the Tk main thread, so shared state is only touched there.
+                    self.last_scan = scan_record
+                    self.lbl_pipeline_step.configure(text="Step 4/4: Complete")
+                    self.btn_analyze.configure(state="normal")
+                    self._on_scan_success(verdict, ingest_res, analyzable_text, elapsed)
+
+                self.after(0, _finish)
 
             except Exception as e:
-                import traceback
-                print("[DEBUG ERROR] Exception in thread:")
-                traceback.print_exc()
+                logger.exception("Scan pipeline failed")
                 self.after(0, lambda: self.btn_analyze.configure(state="normal"))
                 self.after(0, lambda err=e: self._on_scan_fault(err))
 
@@ -2377,7 +2382,6 @@ class ScamShieldApp(ctk.CTk):
         raw_text = self.last_scan.get("input", "")
 
         # 1. Extract forensic entities from text / payload
-        import re
         extracted_phones = list(set(re.findall(r"\b(?:\+91|0)?[6-9]\d{9}\b", raw_text)))
         extracted_urls = list(set(re.findall(r"https?://[^\s<>\"']+|www\.[^\s<>\"']+", raw_text)))
 
